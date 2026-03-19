@@ -8,6 +8,7 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import signal
 import subprocess
 import sys
@@ -57,8 +58,6 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
     if mem.get("cpu_offload_gb", 0) > 0:
         cmd += ["--cpu-offload-gb", str(mem["cpu_offload_gb"])]
 
-    cmd += ["--attention-backend", perf["attention_backend"]]
-
     if perf.get("enable_prefix_caching"):
         cmd += ["--enable-prefix-caching"]
 
@@ -67,7 +66,6 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
 
     cmd += ["--max-num-seqs", str(perf["max_num_seqs"])]
     cmd += ["--max-num-batched-tokens", str(perf["max_num_batched_tokens"])]
-    cmd += ["--max-seq-len-to-capture", str(perf["max_seq_len_to_capture"])]
 
     cmd += ["--tensor-parallel-size", str(par["tensor_parallel_size"])]
 
@@ -84,7 +82,15 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
     return cmd
 
 
-def wait_for_healthy(host: str, port: int, timeout: int = 180) -> None:
+def get_env(engine_cfg: dict) -> dict:
+    env = os.environ.copy()
+    attention = engine_cfg["performance"].get("attention_backend")
+    if attention:
+        env["VLLM_ATTENTION_BACKEND"] = attention
+    return env
+
+
+def wait_for_healthy(host: str, port: int, timeout: int = 300) -> None:
     url = f"http://{host}:{port}/health"
     start = time.time()
     while time.time() - start < timeout:
@@ -107,6 +113,7 @@ def main():
     engine_cfg = load_yaml(ENGINE_YAML)
 
     cmd = build_command(model_cfg, engine_cfg)
+    env = get_env(engine_cfg)
 
     host = engine_cfg["server"]["host"]
     port = engine_cfg["server"]["port"]
@@ -117,9 +124,10 @@ def main():
     print(f"  Dtype:   {model_cfg['model']['dtype']}")
     print(f"  Address: http://{host}:{port}")
     print(f"{'='*60}")
-    print(f"\n  Command:\n  {' '.join(cmd)}\n")
+    print(f"\n  Command:\n  {' '.join(cmd)}")
+    print(f"  Env: VLLM_ATTENTION_BACKEND={env.get('VLLM_ATTENTION_BACKEND', 'default')}\n")
 
-    process = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr)
+    process = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr, env=env)
 
     def shutdown(sig, frame):
         print(f"\nShutting down vLLM server (pid={process.pid})...")
