@@ -1,0 +1,29 @@
+engine:
+  name: "vllm"
+  command: "vllm serve"
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  seed: 42
+
+memory:
+  gpu_memory_utilization: 0.90
+  swap_space: 4
+  cpu_offload_gb: 0
+  kv_cache_dtype: "auto"
+
+performance:
+  attention_backend: "flashinfer"
+  enable_prefix_caching: true
+  enable_chunked_prefill: true
+  max_num_seqs: 256
+  max_num_batched_tokens: 8192
+  max_seq_len_to_capture: 8192
+
+parallelism:
+  tensor_parallel_size: 1
+  pipeline_parallel_size: 1
+
+logging:
+  disable_log_stats: false

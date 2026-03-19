@@ -1,0 +1,71 @@
+# Environment files (contain secrets)
+.env
+*.env
+configs/.env
+inference/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+*.so
+venv/
+.venv/
+env/
+
+# Checkpoints and model weights
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.gguf
+*.onnx
+checkpoints/
+
+# HuggingFace cache
+.cache/
+huggingface/
+
+# Data
+*.parquet
+*.arrow
+*.csv
+*.jsonl
+*.tsv
+*.h5
+*.hdf5
+
+# Results (JSON benchmarks are committed, but large dumps are not)
+results/**/*.log
+
+# Experiment tracking
+wandb/
+mlruns/
+tensorboard/
+lightning_logs/
+runs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Jupyter
+.ipynb_checkpoints/
+
+# CUDA / profiling
+*.ncu-rep
+*.nsys-rep
+*.qdrep
+core.*
