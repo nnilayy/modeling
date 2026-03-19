@@ -14,7 +14,6 @@ memory:
   kv_cache_dtype: "auto"
 
 performance:
-  attention_backend: "FLASHINFER"    # set via VLLM_ATTENTION_BACKEND env var
   enable_prefix_caching: true
   enable_chunked_prefill: true
   max_num_seqs: 256

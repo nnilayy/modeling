@@ -4,7 +4,7 @@ model:
   dtype: "bfloat16"
   quantization: null
   context_length: 8192
-  trust_remote_code: true
+  trust_remote_code: false
 
 metadata:
   family: "qwen3.5"
