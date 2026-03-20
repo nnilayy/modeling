@@ -5,6 +5,7 @@ Usage:
     python -m inference.tasks.llm.client
 
 Assumes a server is already running at the configured host:port.
+Auto-detects which model the server is serving.
 """
 
 from __future__ import annotations
@@ -19,8 +20,11 @@ API_KEY = "dummy"
 def main():
     client = OpenAI(base_url=BASE_URL, api_key=API_KEY)
 
+    models = client.models.list()
+    model_name = models.data[0].id
+
     response = client.chat.completions.create(
-        model="Qwen/Qwen3.5-4B",
+        model=model_name,
         messages=[
             {"role": "user", "content": "What is the capital of France?"},
         ],
