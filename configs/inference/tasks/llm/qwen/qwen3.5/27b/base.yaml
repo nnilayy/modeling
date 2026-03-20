@@ -1,13 +1,12 @@
 model:
-  name: "Qwen/Qwen3.5-4B"
+  name: "Qwen/Qwen3.5-27B"
   revision: "main"
   dtype: "bfloat16"
   quantization: null
   context_length: 8192
-  trust_remote_code: false
 
 metadata:
   family: "qwen3.5"
   provider: "alibaba"
-  params_billion: 4.0
+  params_billion: 27.0
   architecture: "dense"
