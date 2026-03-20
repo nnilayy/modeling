@@ -113,7 +113,7 @@ def main():
     print(f"{'='*60}")
     print(f"\n  Command:\n  {' '.join(cmd)}\n")
 
-    process = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr, env=env)
+    process = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr)
 
     def shutdown(sig, frame):
         print(f"\nShutting down vLLM server (pid={process.pid})...")
