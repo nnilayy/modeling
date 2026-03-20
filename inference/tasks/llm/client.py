@@ -25,6 +25,7 @@ def main():
             {"role": "user", "content": "What is the capital of France?"},
         ],
         max_tokens=256,
+        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
     )
 
     print(f"\n{'='*60}")
