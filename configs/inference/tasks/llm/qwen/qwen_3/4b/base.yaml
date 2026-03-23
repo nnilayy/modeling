@@ -1,0 +1,12 @@
+model:
+  name: "Qwen/Qwen3-4B"
+  revision: "main"
+  dtype: "bfloat16"
+  quantization: null
+  context_length: 32768
+
+metadata:
+  family: "qwen_3"
+  provider: "alibaba"
+  params_billion: 4.0
+  architecture: "dense"
