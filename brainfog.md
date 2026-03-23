@@ -9,10 +9,6 @@ LLM evaluation — 4 pillars only:
 
 Target models (Qwen 3.5 + Gemma 3 only — multilingual requirement: 100+ languages):
 
-< 1B:
-- Gemma 3-270M (Dense, Google)
-- Qwen 3.5-0.8B (Dense, Alibaba)
-
 1B - 10B:
 - Gemma 3-1B (Dense, Google)
 - Qwen 3.5-2B (Dense, Alibaba)
@@ -26,12 +22,7 @@ Target models (Qwen 3.5 + Gemma 3 only — multilingual requirement: 100+ langua
 - Qwen 3.5-27B (Dense, Alibaba)
 - Qwen 3.5-35B-A3B (MoE 35B total, 3B active, Alibaba)
 
-> 100B:
-- Qwen 3.5-122B-A10B (MoE 122B total, 10B active, Alibaba)
-- Qwen 3.5-397B-A17B (MoE 397B total, 17B active, Alibaba)
-
 Inference engines:
-- HuggingFace Transformers — development server (loading, testing, forward checks)
 - vLLM — production multi-user serving
 - SGLang — multi-turn chat, agentic, tool calling
 - TensorRT-LLM — max NVIDIA performance

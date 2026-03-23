@@ -1,12 +1,12 @@
 model:
-  name: "Qwen/Qwen3.5-9B"
+  name: "google/gemma-3-1b-it"
   revision: "main"
   dtype: "bfloat16"
   quantization: null
   context_length: 8192
 
 metadata:
-  family: "qwen3.5"
-  provider: "alibaba"
-  params_billion: 9.0
+  family: "gemma_3"
+  provider: "google"
+  params_billion: 1.0
   architecture: "dense"
