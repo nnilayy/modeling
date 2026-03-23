@@ -9,7 +9,6 @@ server:
 
 memory:
   gpu_memory_utilization: 0.90
-  swap_space: 4
   cpu_offload_gb: 0
   kv_cache_dtype: "auto"
 

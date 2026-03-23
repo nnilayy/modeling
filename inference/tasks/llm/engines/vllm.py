@@ -48,7 +48,6 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
         cmd += ["--revision", m["revision"]]
 
     cmd += ["--gpu-memory-utilization", str(mem["gpu_memory_utilization"])]
-    cmd += ["--swap-space", str(mem["swap_space"])]
     cmd += ["--kv-cache-dtype", mem["kv_cache_dtype"]]
 
     if mem.get("cpu_offload_gb", 0) > 0:
