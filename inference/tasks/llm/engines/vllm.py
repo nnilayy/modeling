@@ -71,6 +71,9 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
     cmd += ["--port", str(srv["port"])]
     cmd += ["--seed", str(srv["seed"])]
 
+    if srv.get("trust_remote_code"):
+        cmd += ["--trust-remote-code"]
+
     if log.get("disable_log_stats"):
         cmd += ["--disable-log-stats"]
 
