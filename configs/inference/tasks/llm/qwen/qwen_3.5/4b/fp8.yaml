@@ -2,7 +2,7 @@ model:
   name: "nilay-samora/qwen3.5-4b-fp8"
   revision: "main"
   dtype: "auto"
-  quantization: "fp8"
+  quantization: null
   context_length: 8192
 
 metadata:
