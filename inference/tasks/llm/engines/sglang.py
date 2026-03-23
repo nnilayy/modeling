@@ -61,6 +61,9 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
     cmd += ["--host", srv["host"]]
     cmd += ["--port", str(srv["port"])]
 
+    if m.get("language_only"):
+        cmd += ["--language-only"]
+
     if srv.get("trust_remote_code"):
         cmd += ["--trust-remote-code"]
 
