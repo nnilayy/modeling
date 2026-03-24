@@ -9,7 +9,6 @@ recipe:
   method: "awq_int4"
   scheme: "W4A16_ASYM"
   targets: "Linear"
-  sequential_targets: ["Gemma3DecoderLayer"]
   ignore:
     - "re:.*lm_head"
     - "re:vision_tower.*"

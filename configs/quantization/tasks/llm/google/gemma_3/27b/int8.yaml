@@ -9,7 +9,6 @@ recipe:
   method: "int8"
   scheme: "W8A8"
   targets: "Linear"
-  sequential_targets: ["Gemma3DecoderLayer"]
   ignore:
     - "re:.*lm_head"
     - "re:vision_tower.*"

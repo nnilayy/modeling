@@ -50,35 +50,21 @@ def build_recipe(recipe_config):
     ignore_layers = recipe_config.get("ignore", ["lm_head"])
     targets = recipe_config.get("targets", "Linear")
     scheme = recipe_config["scheme"]
-    sequential_targets = recipe_config.get("sequential_targets")
-
     if method == "fp8":
-        kwargs = {"targets": targets, "scheme": scheme, "ignore": ignore_layers}
-        if sequential_targets:
-            kwargs["sequential_targets"] = sequential_targets
-        return QuantizationModifier(**kwargs)
+        return QuantizationModifier(targets=targets, scheme=scheme, ignore=ignore_layers)
 
     if method == "int8":
         smoothquant_config = recipe_config.get("smoothquant", {})
-        gptq_kwargs = {"targets": targets, "scheme": scheme, "ignore": ignore_layers}
-        if sequential_targets:
-            gptq_kwargs["sequential_targets"] = sequential_targets
         return [
             SmoothQuantModifier(smoothing_strength=smoothquant_config.get("smoothing_strength", 0.8)),
-            GPTQModifier(**gptq_kwargs),
+            GPTQModifier(targets=targets, scheme=scheme, ignore=ignore_layers),
         ]
 
     if method == "gptq_int4":
-        kwargs = {"targets": targets, "scheme": scheme, "ignore": ignore_layers}
-        if sequential_targets:
-            kwargs["sequential_targets"] = sequential_targets
-        return GPTQModifier(**kwargs)
+        return GPTQModifier(targets=targets, scheme=scheme, ignore=ignore_layers)
 
     if method == "awq_int4":
-        kwargs = {"targets": [targets], "scheme": scheme, "ignore": ignore_layers}
-        if sequential_targets:
-            kwargs["sequential_targets"] = sequential_targets
-        return [AWQModifier(**kwargs)]
+        return [AWQModifier(targets=[targets], scheme=scheme, ignore=ignore_layers)]
 
     raise ValueError(f"Unknown method: {method}")
 

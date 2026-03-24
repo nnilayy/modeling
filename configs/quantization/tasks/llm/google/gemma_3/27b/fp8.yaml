@@ -9,7 +9,6 @@ recipe:
   method: "fp8"
   scheme: "FP8_DYNAMIC"
   targets: "Linear"
-  sequential_targets: ["Gemma3DecoderLayer"]
   ignore:
     - "re:.*lm_head"
     - "re:vision_tower.*"
