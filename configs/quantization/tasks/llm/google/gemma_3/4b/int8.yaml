@@ -11,8 +11,8 @@ recipe:
   targets: "Linear"
   ignore:
     - "re:.*lm_head"
-    - "re:vision_tower.*"
-    - "re:multi_modal_projector.*"
+    - "re:.*vision_tower.*"
+    - "re:.*multi_modal_projector.*"
   smoothquant:
     enabled: true
     smoothing_strength: 0.8
