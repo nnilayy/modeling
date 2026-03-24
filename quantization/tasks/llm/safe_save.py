@@ -1,9 +1,11 @@
+import glob
 import json
 import os
 import re
 from contextlib import contextmanager
 
 import torch
+from safetensors.torch import load_file, save_file
 import llmcompressor.transformers.compression.compressed_tensors_utils as _ct_utils
 
 
@@ -74,3 +76,43 @@ def fix_quantization_config(model, save_directory, ignore_patterns):
         json.dump(config, f, indent=2)
 
     print(f"Fixed quantization_config.ignore: {len(expanded)} modules explicitly listed")
+
+
+def fix_safetensors_prefix(save_directory, prefix="model."):
+    """Strip leading prefix from weight keys in saved safetensors files.
+
+    Transformers v4.52+ wraps Gemma 3 submodules under self.model, producing
+    weight keys like 'model.vision_tower.xxx'. vLLM (built against v4.50
+    naming) expects 'vision_tower.xxx'. This renames keys to match.
+    """
+    sf_files = glob.glob(os.path.join(save_directory, "*.safetensors"))
+    if not sf_files:
+        return
+
+    renamed_count = 0
+    for path in sf_files:
+        tensors = load_file(path)
+        needs_rename = any(k.startswith(prefix) for k in tensors)
+        if not needs_rename:
+            continue
+        renamed = {
+            (k[len(prefix):] if k.startswith(prefix) else k): v
+            for k, v in tensors.items()
+        }
+        save_file(renamed, path)
+        renamed_count += 1
+
+    index_path = os.path.join(save_directory, "model.safetensors.index.json")
+    if os.path.exists(index_path):
+        with open(index_path, "r") as f:
+            index = json.load(f)
+        if "weight_map" in index:
+            index["weight_map"] = {
+                (k[len(prefix):] if k.startswith(prefix) else k): v
+                for k, v in index["weight_map"].items()
+            }
+            with open(index_path, "w") as f:
+                json.dump(index, f, indent=2)
+
+    if renamed_count:
+        print(f"Fixed safetensors: stripped '{prefix}' prefix from {renamed_count} file(s)")
