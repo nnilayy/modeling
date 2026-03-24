@@ -2,7 +2,6 @@ import importlib
 import os
 import sys
 import torch
-from compressed_tensors.offload import dispatch_model
 from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoProcessor
 from datasets import load_dataset
@@ -51,22 +50,35 @@ def build_recipe(recipe_config):
     ignore_layers = recipe_config.get("ignore", ["lm_head"])
     targets = recipe_config.get("targets", "Linear")
     scheme = recipe_config["scheme"]
+    sequential_targets = recipe_config.get("sequential_targets")
 
     if method == "fp8":
-        return QuantizationModifier(targets=targets, scheme=scheme, ignore=ignore_layers)
+        kwargs = {"targets": targets, "scheme": scheme, "ignore": ignore_layers}
+        if sequential_targets:
+            kwargs["sequential_targets"] = sequential_targets
+        return QuantizationModifier(**kwargs)
 
     if method == "int8":
         smoothquant_config = recipe_config.get("smoothquant", {})
+        gptq_kwargs = {"targets": targets, "scheme": scheme, "ignore": ignore_layers}
+        if sequential_targets:
+            gptq_kwargs["sequential_targets"] = sequential_targets
         return [
             SmoothQuantModifier(smoothing_strength=smoothquant_config.get("smoothing_strength", 0.8)),
-            GPTQModifier(targets=targets, scheme=scheme, ignore=ignore_layers),
+            GPTQModifier(**gptq_kwargs),
         ]
 
     if method == "gptq_int4":
-        return GPTQModifier(targets=targets, scheme=scheme, ignore=ignore_layers)
+        kwargs = {"targets": targets, "scheme": scheme, "ignore": ignore_layers}
+        if sequential_targets:
+            kwargs["sequential_targets"] = sequential_targets
+        return GPTQModifier(**kwargs)
 
     if method == "awq_int4":
-        return [AWQModifier(targets=[targets], scheme=scheme, ignore=ignore_layers)]
+        kwargs = {"targets": [targets], "scheme": scheme, "ignore": ignore_layers}
+        if sequential_targets:
+            kwargs["sequential_targets"] = sequential_targets
+        return [AWQModifier(**kwargs)]
 
     raise ValueError(f"Unknown method: {method}")
 
@@ -109,8 +121,8 @@ def run(config_path):
     if model_class_name:
         transformers_module = importlib.import_module("transformers")
         model_class = getattr(transformers_module, model_class_name)
-        model = model_class.from_pretrained(base_model, torch_dtype=dtype)
-        print(f"Loaded with {model_class_name}")
+        model = model_class.from_pretrained(base_model, device_map="auto", torch_dtype=dtype)
+        print(f"Loaded with {model_class_name} (device_map=auto)")
     else:
         model = AutoModelForCausalLM.from_pretrained(base_model, torch_dtype=dtype)
 
@@ -137,6 +149,9 @@ def run(config_path):
         oneshot_kwargs["max_seq_length"] = calibration_config.get("max_seq_length", 2048)
         oneshot_kwargs["num_calibration_samples"] = calibration_config.get("num_samples", 512)
 
+    save_directory = output_repo.split("/")[-1]
+    oneshot_kwargs["output_dir"] = save_directory
+
     sequential_device = offload_config.get("sequential_device")
     if sequential_device:
         oneshot_kwargs["sequential_offload_device"] = sequential_device
@@ -144,14 +159,6 @@ def run(config_path):
     oneshot(**oneshot_kwargs)
 
     print_gpu_stats("After quantization")
-
-    # oneshot() leaves the model in a partially-dispatched state with an
-    # incomplete device_map (ignored modules like vision_tower are missing).
-    # Re-dispatch to build a complete device_map so save_pretrained works.
-    dispatch_model(model)
-
-    save_directory = output_repo.split("/")[-1]
-    model.save_pretrained(save_directory, save_compressed=save_config.get("compressed", True))
 
     if processor is not None:
         processor.save_pretrained(save_directory)
