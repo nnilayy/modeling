@@ -1,0 +1,33 @@
+model:
+  base: "Qwen/Qwen3-1.7B"
+  output: "nilay-samora/qwen3-1.7b-int8"
+  dtype: "bfloat16"
+
+recipe:
+  method: "int8"
+  scheme: "W8A8"
+  targets: "Linear"
+  ignore: ["lm_head"]
+  smoothquant:
+    enabled: true
+    smoothing_strength: 0.8
+
+calibration:
+  enabled: true
+  dataset: "HuggingFaceH4/ultrachat_200k"
+  split: "train_sft"
+  num_samples: 512
+  max_seq_length: 2048
+  seed: 42
+
+offload:
+  sequential_device: "cpu"
+
+save:
+  compressed: true
+
+metadata:
+  family: "qwen_3"
+  provider: "alibaba"
+  params_billion: 1.7
+  architecture: "dense"

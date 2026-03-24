@@ -1,0 +1,30 @@
+model:
+  base: "google/gemma-3-27b-it"
+  output: "nilay-samora/gemma3-27b-fp8"
+  dtype: "bfloat16"
+
+recipe:
+  method: "fp8"
+  scheme: "FP8_DYNAMIC"
+  targets: "Linear"
+  ignore:
+    - "lm_head"
+    - "re:model\\.vision_tower.*"
+    - "re:model\\.multi_modal_projector.*"
+  smoothquant:
+    enabled: false
+
+calibration:
+  enabled: false
+
+offload:
+  sequential_device: "cpu"
+
+save:
+  compressed: true
+
+metadata:
+  family: "gemma_3"
+  provider: "google"
+  params_billion: 27
+  architecture: "dense"

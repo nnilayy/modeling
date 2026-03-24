@@ -1,0 +1,27 @@
+model:
+  base: "Qwen/Qwen3-1.7B"
+  output: "nilay-samora/qwen3-1.7b-fp8"
+  dtype: "bfloat16"
+
+recipe:
+  method: "fp8"
+  scheme: "FP8_DYNAMIC"
+  targets: "Linear"
+  ignore: ["lm_head", "re:.*mlp.gate$"]
+  smoothquant:
+    enabled: false
+
+calibration:
+  enabled: false
+
+offload:
+  sequential_device: "cpu"
+
+save:
+  compressed: true
+
+metadata:
+  family: "qwen_3"
+  provider: "alibaba"
+  params_billion: 1.7
+  architecture: "dense"

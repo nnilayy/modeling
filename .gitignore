@@ -1,8 +1,7 @@
 # Environment files (contain secrets)
 .env
 *.env
-configs/.env
-inference/.env
+!.env.example
 
 # Python
 __pycache__/
@@ -13,9 +12,14 @@ build/
 .eggs/
 *.whl
 *.so
+*.pyo
+*.pyc
 venv/
 .venv/
 env/
+env_*/
+*_env/
+*_env[0-9]*/
 
 # Checkpoints and model weights
 *.pt
@@ -26,9 +30,14 @@ env/
 *.onnx
 checkpoints/
 
+# Quantized model output dirs (saved locally before upload)
+qwen3-*/
+gemma3-*/
+
 # HuggingFace cache
 .cache/
 huggingface/
+*.lock
 
 # Data
 *.parquet
@@ -60,12 +69,24 @@ runs/
 .DS_Store
 Thumbs.db
 Desktop.ini
+.Trash-*/
 
 # Jupyter
 .ipynb_checkpoints/
+*.ipynb
 
 # CUDA / profiling
 *.ncu-rep
 *.nsys-rep
 *.qdrep
 core.*
+
+# Logs
+*.log
+logs/
+
+# Temp files
+*.tmp
+*.temp
+tmp/
+temp/
