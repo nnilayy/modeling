@@ -9,6 +9,7 @@ from llmcompressor import oneshot
 from llmcompressor.modifiers.quantization import QuantizationModifier, GPTQModifier
 from llmcompressor.modifiers.transform.smoothquant import SmoothQuantModifier
 from llmcompressor.modifiers.awq import AWQModifier
+import llmcompressor.transformers.compression.compressed_tensors_utils as _ct_utils
 from huggingface_hub import HfApi, login
 from quantization.common.config import load_config
 from quantization.common.gpu import print_gpu_stats, clear_gpu
@@ -142,7 +143,17 @@ def run(config_path):
     if sequential_device:
         oneshot_kwargs["sequential_offload_device"] = sequential_device
 
+    if is_multimodal:
+        _orig_to = _ct_utils.to_accelerate
+        _orig_from = _ct_utils.from_accelerate
+        _ct_utils.to_accelerate = lambda m: None
+        _ct_utils.from_accelerate = lambda m: None
+
     oneshot(**oneshot_kwargs)
+
+    if is_multimodal:
+        _ct_utils.to_accelerate = _orig_to
+        _ct_utils.from_accelerate = _orig_from
 
     print_gpu_stats("After quantization")
 
