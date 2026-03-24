@@ -2,6 +2,7 @@ import importlib
 import os
 import sys
 import torch
+from compressed_tensors.offload import dispatch_model
 from dotenv import load_dotenv
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoProcessor
 from datasets import load_dataset
@@ -144,9 +145,12 @@ def run(config_path):
 
     print_gpu_stats("After quantization")
 
+    # oneshot() leaves the model in a partially-dispatched state with an
+    # incomplete device_map (ignored modules like vision_tower are missing).
+    # Re-dispatch to build a complete device_map so save_pretrained works.
+    dispatch_model(model)
+
     save_directory = output_repo.split("/")[-1]
-
-
     model.save_pretrained(save_directory, save_compressed=save_config.get("compressed", True))
 
     if processor is not None:
