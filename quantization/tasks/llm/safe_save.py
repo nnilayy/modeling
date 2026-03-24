@@ -56,6 +56,11 @@ def fix_quantization_config(model, save_directory, ignore_patterns):
     if not expanded:
         return
 
+    # Newer transformers (4.57+) wraps submodules under self.model, giving
+    # names like "model.vision_tower.xxx". vLLM strips this prefix internally,
+    # so the ignore list must use names without it to match correctly.
+    expanded = [n[len("model."):] if n.startswith("model.") else n for n in expanded]
+
     with open(config_path, "r") as f:
         config = json.load(f)
 
