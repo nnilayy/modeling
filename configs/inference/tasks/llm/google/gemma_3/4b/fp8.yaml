@@ -1,0 +1,14 @@
+model:
+  name: "nilay-samora/gemma3-4b-fp8"
+  revision: "main"
+  dtype: "auto"
+  quantization: null
+  context_length: 8192
+
+metadata:
+  family: "gemma_3"
+  provider: "google"
+  params_billion: 4.0
+  architecture: "dense"
+  base_model: "google/gemma-3-4b-it"
+  quantization_method: "fp8_dynamic"
