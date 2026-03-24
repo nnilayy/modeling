@@ -12,7 +12,7 @@ from llmcompressor.modifiers.awq import AWQModifier
 from huggingface_hub import HfApi, login
 from quantization.common.config import load_config
 from quantization.common.gpu import print_gpu_stats, clear_gpu
-from quantization.tasks.llm.safe_save import skip_accelerate_save
+from quantization.tasks.llm.safe_save import skip_accelerate_save, fix_quantization_config
 
 
 def prepare_calibration(tokenizer, calibration_config):
@@ -141,6 +141,8 @@ def run(config_path):
 
     with skip_accelerate_save():
         oneshot(**oneshot_kwargs)
+
+    fix_quantization_config(model, save_directory, ignore_layers)
 
     print_gpu_stats("After quantization")
 
