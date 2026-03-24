@@ -2,6 +2,8 @@ model:
   base: "google/gemma-3-4b-it"
   output: "nilay-samora/gemma3-4b-int8"
   dtype: "bfloat16"
+  model_class: "Gemma3ForConditionalGeneration"
+  multimodal: true
 
 recipe:
   method: "int8"

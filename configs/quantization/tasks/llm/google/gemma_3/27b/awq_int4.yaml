@@ -2,6 +2,8 @@ model:
   base: "google/gemma-3-27b-it"
   output: "nilay-samora/gemma3-27b-awq-int4"
   dtype: "bfloat16"
+  model_class: "Gemma3ForConditionalGeneration"
+  multimodal: true
 
 recipe:
   method: "awq_int4"

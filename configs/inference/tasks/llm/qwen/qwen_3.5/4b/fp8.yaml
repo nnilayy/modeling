@@ -4,7 +4,6 @@ model:
   dtype: "auto"
   quantization: null
   context_length: 8192
-  language_only: true
 
 metadata:
   family: "qwen_3.5"

@@ -1,8 +1,9 @@
+import importlib
 import os
 import sys
 import torch
 from dotenv import load_dotenv
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoProcessor
 from datasets import load_dataset
 from llmcompressor import oneshot
 from llmcompressor.modifiers.quantization import QuantizationModifier, GPTQModifier
@@ -101,8 +102,23 @@ def run(config_path):
     dtype_map = {"bfloat16": torch.bfloat16, "float16": torch.float16}
     dtype = dtype_map.get(model_config.get("dtype", "bfloat16"), torch.bfloat16)
 
-    model = AutoModelForCausalLM.from_pretrained(base_model, torch_dtype=dtype)
-    tokenizer = AutoTokenizer.from_pretrained(base_model)
+    model_class_name = model_config.get("model_class")
+    is_multimodal = model_config.get("multimodal", False)
+
+    if model_class_name:
+        transformers_module = importlib.import_module("transformers")
+        model_class = getattr(transformers_module, model_class_name)
+        model = model_class.from_pretrained(base_model, torch_dtype=dtype)
+        print(f"Loaded with {model_class_name}")
+    else:
+        model = AutoModelForCausalLM.from_pretrained(base_model, torch_dtype=dtype)
+
+    if is_multimodal:
+        processor = AutoProcessor.from_pretrained(base_model)
+        tokenizer = processor.tokenizer
+    else:
+        processor = None
+        tokenizer = AutoTokenizer.from_pretrained(base_model)
 
     print_gpu_stats("After loading")
 
@@ -129,8 +145,21 @@ def run(config_path):
     print_gpu_stats("After quantization")
 
     save_directory = output_repo.split("/")[-1]
+
+    # After oneshot with sequential offloading, the model may have a device_map
+    # that causes save_pretrained to fail on multimodal models (vision_tower
+    # modules missing from module_map). Consolidate to CPU and remove device_map.
+    if hasattr(model, "hf_device_map"):
+        model = model.to("cpu")
+        del model.hf_device_map
+        torch.cuda.empty_cache()
+
     model.save_pretrained(save_directory, save_compressed=save_config.get("compressed", True))
-    tokenizer.save_pretrained(save_directory)
+
+    if processor is not None:
+        processor.save_pretrained(save_directory)
+    else:
+        tokenizer.save_pretrained(save_directory)
 
     api = HfApi()
     api.create_repo(output_repo, exist_ok=True)
