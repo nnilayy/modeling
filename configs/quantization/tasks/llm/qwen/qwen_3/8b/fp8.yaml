@@ -2,6 +2,7 @@ model:
   base: "Qwen/Qwen3-8B"
   output: "nilay-samora/qwen3-8b-fp8"
   dtype: "bfloat16"
+  model_class: "Qwen3ForCausalLM"
 
 recipe:
   method: "fp8"

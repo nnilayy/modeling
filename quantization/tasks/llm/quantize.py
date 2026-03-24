@@ -3,16 +3,16 @@ import os
 import sys
 import torch
 from dotenv import load_dotenv
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoProcessor
+from transformers import AutoTokenizer, AutoProcessor
 from datasets import load_dataset
 from llmcompressor import oneshot
 from llmcompressor.modifiers.quantization import QuantizationModifier, GPTQModifier
 from llmcompressor.modifiers.transform.smoothquant import SmoothQuantModifier
 from llmcompressor.modifiers.awq import AWQModifier
-import llmcompressor.transformers.compression.compressed_tensors_utils as _ct_utils
 from huggingface_hub import HfApi, login
 from quantization.common.config import load_config
 from quantization.common.gpu import print_gpu_stats, clear_gpu
+from quantization.tasks.llm.safe_save import skip_accelerate_save
 
 
 def prepare_calibration(tokenizer, calibration_config):
@@ -99,19 +99,15 @@ def run(config_path):
 
     print_gpu_stats("Before loading")
 
-    dtype_map = {"bfloat16": torch.bfloat16, "float16": torch.float16}
-    dtype = dtype_map.get(model_config.get("dtype", "bfloat16"), torch.bfloat16)
+    dtype = getattr(torch, model_config.get("dtype", "bfloat16"))
 
-    model_class_name = model_config.get("model_class")
     is_multimodal = model_config.get("multimodal", False)
 
-    if model_class_name:
-        transformers_module = importlib.import_module("transformers")
-        model_class = getattr(transformers_module, model_class_name)
-        model = model_class.from_pretrained(base_model, device_map="auto", torch_dtype=dtype)
-        print(f"Loaded with {model_class_name} (device_map=auto)")
-    else:
-        model = AutoModelForCausalLM.from_pretrained(base_model, torch_dtype=dtype)
+    model_class_name = model_config["model_class"]   
+    transformers_module = importlib.import_module("transformers")
+    model_class = getattr(transformers_module, model_class_name)
+    model = model_class.from_pretrained(base_model, device_map="auto", torch_dtype=dtype)
+    print(f"Loaded with {model_class_name} (device_map=auto)")
 
     if is_multimodal:
         processor = AutoProcessor.from_pretrained(base_model)
@@ -143,17 +139,8 @@ def run(config_path):
     if sequential_device:
         oneshot_kwargs["sequential_offload_device"] = sequential_device
 
-    if is_multimodal:
-        _orig_to = _ct_utils.to_accelerate
-        _orig_from = _ct_utils.from_accelerate
-        _ct_utils.to_accelerate = lambda m: None
-        _ct_utils.from_accelerate = lambda m: None
-
-    oneshot(**oneshot_kwargs)
-
-    if is_multimodal:
-        _ct_utils.to_accelerate = _orig_to
-        _ct_utils.from_accelerate = _orig_from
+    with skip_accelerate_save():
+        oneshot(**oneshot_kwargs)
 
     print_gpu_stats("After quantization")
 

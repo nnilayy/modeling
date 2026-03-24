@@ -2,6 +2,7 @@ model:
   base: "Qwen/Qwen3-30B-A3B"
   output: "nilay-samora/qwen3-30b-a3b-int8"
   dtype: "bfloat16"
+  model_class: "Qwen3MoeForCausalLM"
 
 recipe:
   method: "int8"
