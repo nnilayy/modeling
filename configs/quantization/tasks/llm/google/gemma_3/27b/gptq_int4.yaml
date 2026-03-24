@@ -25,7 +25,7 @@ calibration:
   seed: 42
 
 offload:
-  sequential_device: "cpu"
+  sequential_device: null
 
 save:
   compressed: true

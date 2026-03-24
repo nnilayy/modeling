@@ -20,7 +20,7 @@ calibration:
   enabled: false
 
 offload:
-  sequential_device: "cpu"
+  sequential_device: null
 
 save:
   compressed: true

@@ -146,16 +146,6 @@ def run(config_path):
 
     save_directory = output_repo.split("/")[-1]
 
-    # After oneshot with sequential offloading, accelerate dispatch hooks and
-    # hf_device_map leave the model in an "offloaded" state. save_pretrained
-    # then tries to build a module_map that fails on multimodal vision_tower
-    # params. Fix: strip all hooks, delete device_map, move to CPU.
-    from accelerate.hooks import remove_hook_from_submodules
-    remove_hook_from_submodules(model)
-    if hasattr(model, "hf_device_map"):
-        del model.hf_device_map
-    model = model.cpu()
-    torch.cuda.empty_cache()
 
     model.save_pretrained(save_directory, save_compressed=save_config.get("compressed", True))
 
