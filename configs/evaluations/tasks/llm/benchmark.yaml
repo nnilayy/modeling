@@ -1,0 +1,12 @@
+server:
+  base_url: "http://0.0.0.0:8000"
+
+generation:
+  max_tokens: 512
+  temperature: 0.0
+
+data:
+  prompts_file: "data/prompts/benchmark_100.json"
+
+output:
+  dir: "results/evaluations/llm/"
