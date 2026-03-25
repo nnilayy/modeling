@@ -74,6 +74,8 @@ class MetricsCollector:
         model_name = models.data[0].id
         print(f"Server model: {model_name}")
 
+        extra = {"chat_template_kwargs": {"enable_thinking": False}}
+
         if warmup_prompts:
             print(f"Warming up with {len(warmup_prompts)} requests...")
             for i, wp in enumerate(warmup_prompts):
@@ -83,6 +85,7 @@ class MetricsCollector:
                     max_tokens=max_tokens,
                     temperature=temperature,
                     stream=True,
+                    extra_body=extra,
                 )
                 for _ in stream:
                     pass
@@ -103,6 +106,7 @@ class MetricsCollector:
                 max_tokens=max_tokens,
                 temperature=temperature,
                 stream=True,
+                extra_body=extra,
             )
 
             token_count = 0
