@@ -1,7 +1,7 @@
 model:
-  name: "Qwen/Qwen3-30B-A3B"
+  name: "nilay-samora/qwen3-30b-a3b-awq-int4"
   revision: "main"
-  dtype: "bfloat16"
+  dtype: "auto"
   quantization: null
 
 metadata:
@@ -10,3 +10,5 @@ metadata:
   params_billion: 30.0
   active_params_billion: 3.0
   architecture: "moe"
+  base_model: "Qwen/Qwen3-30B-A3B"
+  quantization_method: "awq_int4"

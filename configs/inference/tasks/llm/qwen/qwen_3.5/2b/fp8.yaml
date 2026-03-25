@@ -3,7 +3,6 @@ model:
   revision: "main"
   dtype: "auto"
   quantization: "fp8"
-  context_length: 8192
 
 metadata:
   family: "qwen_3.5"

@@ -1,7 +1,7 @@
 model:
-  name: "google/gemma-3-27b-it"
+  name: "nilay-samora/gemma3-27b-fp8"
   revision: "main"
-  dtype: "bfloat16"
+  dtype: "auto"
   quantization: null
 
 metadata:
@@ -9,3 +9,5 @@ metadata:
   provider: "google"
   params_billion: 27.0
   architecture: "dense"
+  base_model: "google/gemma-3-27b-it"
+  quantization_method: "fp8_dynamic"

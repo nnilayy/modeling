@@ -1,13 +1,13 @@
 model:
-  name: "nilay-samora/qwen3.5-4b-fp8"
+  name: "nilay-samora/qwen3-14b-fp8"
   revision: "main"
   dtype: "auto"
   quantization: null
 
 metadata:
-  family: "qwen_3.5"
+  family: "qwen_3"
   provider: "alibaba"
-  params_billion: 4.0
+  params_billion: 14.0
   architecture: "dense"
-  base_model: "Qwen/Qwen3.5-4B"
+  base_model: "Qwen/Qwen3-14B"
   quantization_method: "fp8_dynamic"

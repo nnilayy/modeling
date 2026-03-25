@@ -41,9 +41,6 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
     if m.get("quantization"):
         cmd += ["--quantization", m["quantization"]]
 
-    if m.get("context_length"):
-        cmd += ["--max-model-len", str(m["context_length"])]
-
     if m.get("revision"):
         cmd += ["--revision", m["revision"]]
 

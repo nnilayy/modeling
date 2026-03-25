@@ -1,5 +1,5 @@
 model:
-  name: "nilay-samora/qwen3-1.7b-int8"
+  name: "nilay-samora/qwen3-1.7b-awq-int4"
   revision: "main"
   dtype: "auto"
   quantization: null
@@ -10,4 +10,4 @@ metadata:
   params_billion: 1.7
   architecture: "dense"
   base_model: "Qwen/Qwen3-1.7B"
-  quantization_method: "w8a8_int8"
+  quantization_method: "awq_int4"

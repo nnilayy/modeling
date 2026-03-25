@@ -1,7 +1,7 @@
 model:
-  name: "google/gemma-3-12b-it"
+  name: "nilay-samora/gemma3-12b-gptq-int4"
   revision: "main"
-  dtype: "bfloat16"
+  dtype: "auto"
   quantization: null
 
 metadata:
@@ -9,3 +9,5 @@ metadata:
   provider: "google"
   params_billion: 12.0
   architecture: "dense"
+  base_model: "google/gemma-3-12b-it"
+  quantization_method: "gptq_int4"

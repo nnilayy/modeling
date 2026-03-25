@@ -1,5 +1,5 @@
 model:
-  name: "nilay-samora/gemma3-4b-fp8"
+  name: "nilay-samora/gemma3-4b-gptq-int4"
   revision: "main"
   dtype: "auto"
   quantization: null
@@ -10,4 +10,4 @@ metadata:
   params_billion: 4.0
   architecture: "dense"
   base_model: "google/gemma-3-4b-it"
-  quantization_method: "fp8_dynamic"
+  quantization_method: "gptq_int4"
