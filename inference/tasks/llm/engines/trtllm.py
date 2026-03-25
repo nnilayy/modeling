@@ -1,9 +1,9 @@
 """
-SGLang inference engine — launches an SGLang server from model + engine YAMLs.
+TensorRT-LLM inference engine — launches a trtllm-serve server from model + engine YAMLs.
 
 Usage:
-    python -m inference.tasks.llm.engines.sglang \
-        configs/inference/tasks/llm/qwen/qwen_3.5/4b/fp8.yaml
+    python -m inference.tasks.llm.engines.trtllm \
+        configs/inference/tasks/llm/qwen/qwen_3/4b/fp8.yaml
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import requests
 import yaml
 
 
-ENGINE_YAML = Path("configs/inference/common/engines/sglang.yaml")
+ENGINE_YAML = Path("configs/inference/common/engines/trtllm.yaml")
 
 
 def load_yaml(path: Path) -> dict:
@@ -30,39 +30,29 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
     m = model_cfg["model"]
     srv = engine_cfg["server"]
     mem = engine_cfg["memory"]
-    perf = engine_cfg["performance"]
     par = engine_cfg["parallelism"]
     log = engine_cfg["logging"]
 
-    cmd = ["python3", "-m", "sglang.launch_server"]
-
-    cmd += ["--model-path", m["name"]]
-    cmd += ["--dtype", m["dtype"]]
-
-    if m.get("quantization"):
-        cmd += ["--quantization", m["quantization"]]
-
-    if m.get("revision"):
-        cmd += ["--revision", m["revision"]]
-
-    cmd += ["--mem-fraction-static", str(mem["mem_fraction_static"])]
-
-    if perf.get("chunked_prefill_size"):
-        cmd += ["--chunked-prefill-size", str(perf["chunked_prefill_size"])]
-
-    if perf.get("schedule_policy"):
-        cmd += ["--schedule-policy", perf["schedule_policy"]]
-
-    cmd += ["--tp", str(par["tensor_parallel_size"])]
+    cmd = ["trtllm-serve", m["name"]]
 
     cmd += ["--host", srv["host"]]
     cmd += ["--port", str(srv["port"])]
 
     if srv.get("trust_remote_code"):
-        cmd += ["--trust-remote-code"]
+        cmd += ["--trust_remote_code"]
+
+    cmd += ["--kv_cache_free_gpu_memory_fraction", str(mem["kv_cache_free_gpu_memory_fraction"])]
+
+    cmd += ["--tp_size", str(par["tensor_parallel_size"])]
+
+    if par.get("pipeline_parallel_size", 1) > 1:
+        cmd += ["--pp_size", str(par["pipeline_parallel_size"])]
+
+    if par.get("expert_parallel_size", 1) > 1:
+        cmd += ["--ep_size", str(par["expert_parallel_size"])]
 
     if log.get("log_level"):
-        cmd += ["--log-level", log["log_level"]]
+        cmd += ["--log_level", log["log_level"]]
 
     return cmd
 
@@ -77,13 +67,13 @@ def wait_for_healthy(host: str, port: int, timeout: int = 600) -> None:
                 return
         except (requests.ConnectionError, requests.Timeout):
             pass
-        time.sleep(3)
-    raise TimeoutError(f"SGLang server not healthy after {timeout}s at {url}")
+        time.sleep(5)
+    raise TimeoutError(f"TensorRT-LLM server not healthy after {timeout}s at {url}")
 
 
 def main():
     if len(sys.argv) != 2:
-        print("Usage: python -m inference.tasks.llm.engines.sglang <model.yaml>")
+        print("Usage: python -m inference.tasks.llm.engines.trtllm <model.yaml>")
         sys.exit(1)
 
     model_cfg = load_yaml(Path(sys.argv[1]))
@@ -95,9 +85,8 @@ def main():
     port = engine_cfg["server"]["port"]
 
     print(f"\n{'='*60}")
-    print(f"  SGLang Server")
+    print(f"  TensorRT-LLM Server")
     print(f"  Model:   {model_cfg['model']['name']}")
-    print(f"  Dtype:   {model_cfg['model']['dtype']}")
     print(f"  Address: http://{host}:{port}")
     print(f"{'='*60}")
     print(f"\n  Command:\n  {' '.join(cmd)}\n")
@@ -105,7 +94,7 @@ def main():
     process = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr)
 
     def shutdown(sig, frame):
-        print(f"\nShutting down SGLang server (pid={process.pid})...")
+        print(f"\nShutting down TensorRT-LLM server (pid={process.pid})...")
         process.terminate()
         process.wait(timeout=15)
         sys.exit(0)
@@ -113,7 +102,7 @@ def main():
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
-    print("Waiting for server to be healthy...")
+    print("Waiting for server to be healthy (first run compiles the model, may take several minutes)...")
     try:
         wait_for_healthy(host, port)
     except TimeoutError as e:

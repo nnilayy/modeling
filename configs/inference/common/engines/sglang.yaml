@@ -8,7 +8,7 @@ server:
   trust_remote_code: true
 
 memory:
-  mem_fraction_static: 0.88
+  mem_fraction_static: 0.80
 
 performance:
   chunked_prefill_size: 8192
