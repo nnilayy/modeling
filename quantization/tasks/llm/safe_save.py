@@ -17,3 +17,15 @@ def skip_accelerate_save():
     finally:
         _ct_utils.to_accelerate = orig_to
         _ct_utils.from_accelerate = orig_from
+
+
+def cache_num_parameters(model):
+    """Pre-compute and cache num_parameters() on the model.
+
+    When a model is partially offloaded to CPU via device_map="auto",
+    save_pretrained calls num_parameters() which iterates all parameters,
+    triggering compressed_tensors' offload cache to move them back to GPU.
+    This OOMs on tight-memory setups. Caching the count avoids the iteration.
+    """
+    count = sum(p.numel() for p in model.parameters())
+    model.num_parameters = lambda *args, **kwargs: count

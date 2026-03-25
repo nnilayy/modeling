@@ -12,7 +12,7 @@ from llmcompressor.modifiers.awq import AWQModifier
 from huggingface_hub import HfApi, login
 from quantization.common.config import load_config
 from quantization.common.gpu import print_gpu_stats, clear_gpu
-from quantization.tasks.llm.safe_save import skip_accelerate_save
+from quantization.tasks.llm.safe_save import skip_accelerate_save, cache_num_parameters
 
 
 def prepare_calibration(tokenizer, calibration_config):
@@ -107,6 +107,7 @@ def run(config_path):
     transformers_module = importlib.import_module("transformers")
     model_class = getattr(transformers_module, model_class_name)
     model = model_class.from_pretrained(base_model, device_map="auto", torch_dtype=dtype)
+    cache_num_parameters(model)
     print(f"Loaded with {model_class_name} (device_map=auto)")
 
     if is_multimodal:
