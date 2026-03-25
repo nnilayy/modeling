@@ -14,8 +14,7 @@ recipe:
     - "re:.*vision_tower.*"
     - "re:.*multi_modal_projector.*"
   smoothquant:
-    enabled: true
-    smoothing_strength: 0.8
+    enabled: false
 
 calibration:
   enabled: true
