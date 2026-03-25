@@ -65,6 +65,8 @@ class RequestRecord:
         """Serialise to a flat dict for the ``raw`` array in the output JSON."""
         return {
             "request_id": self.request_id,
+            "prompt": self.prompt,
+            "output_text": self.output_text,
             "num_prompt_tokens": self.num_prompt_tokens,
             "num_output_tokens": self.num_output_tokens,
             "ttft": round(self.ttft, 6),

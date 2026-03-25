@@ -89,15 +89,18 @@ class MetricsCollector:
             )
 
             token_count = 0
+            chunks: list[str] = []
             for chunk in stream:
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if delta and delta.content:
                     if record.t_first_token == 0:
                         record.t_first_token = time.perf_counter()
                     token_count += 1
+                    chunks.append(delta.content)
 
             record.t_last_token = time.perf_counter()
             record.num_output_tokens = token_count
+            record.output_text = "".join(chunks)
             self._store.add(record)
 
             print(
