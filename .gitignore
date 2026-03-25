@@ -90,3 +90,6 @@ logs/
 *.temp
 tmp/
 temp/
+
+# Other
+best_practices/
