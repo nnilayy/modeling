@@ -32,3 +32,4 @@ metadata:
   provider: "alibaba"
   params_billion: 8
   architecture: "dense"
+  quantized_on: "A100-SXM4-40GB"

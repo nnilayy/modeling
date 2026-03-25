@@ -32,3 +32,4 @@ metadata:
   provider: "alibaba"
   params_billion: 30
   architecture: "moe"
+  quantized_on: "A100-SXM4-80GB"

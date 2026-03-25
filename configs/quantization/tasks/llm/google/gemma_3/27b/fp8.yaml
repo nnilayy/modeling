@@ -30,3 +30,4 @@ metadata:
   provider: "google"
   params_billion: 27
   architecture: "dense"
+  quantized_on: "A100-SXM4-40GB"
