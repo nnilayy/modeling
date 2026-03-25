@@ -56,10 +56,11 @@ def build_recipe(recipe_config):
 
     if method == "int8":
         smoothquant_config = recipe_config.get("smoothquant", {})
-        return [
-            SmoothQuantModifier(smoothing_strength=smoothquant_config.get("smoothing_strength", 0.8)),
-            GPTQModifier(targets=targets, scheme=scheme, ignore=ignore_layers),
-        ]
+        modifiers = []
+        if smoothquant_config.get("enabled", False):
+            modifiers.append(SmoothQuantModifier(smoothing_strength=smoothquant_config.get("smoothing_strength", 0.8)))
+        modifiers.append(GPTQModifier(targets=targets, scheme=scheme, ignore=ignore_layers))
+        return modifiers
 
     if method == "gptq_int4":
         return GPTQModifier(targets=targets, scheme=scheme, ignore=ignore_layers)
