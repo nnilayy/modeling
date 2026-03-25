@@ -59,19 +59,36 @@ class MetricsCollector:
         self,
         base_url: str,
         prompts: list[str],
+        warmup_prompts: list[str] | None = None,
         max_tokens: int = 512,
         temperature: float = 0.0,
     ) -> None:
-        """Run the full benchmark: start → stream each prompt → stop.
+        """Run the full benchmark: warmup → start → stream each prompt → stop.
 
-        Sends requests **one at a time** sequentially and records timestamps
-        for TTFT / TPOT / throughput in the shared :class:`RequestStore`.
+        Sends *warmup_prompts* as throwaway requests first to let the server
+        JIT-compile kernels and fill CUDA caches, then records real measurements.
         """
         client = OpenAI(base_url=f"{base_url.rstrip('/')}/v1", api_key="dummy")
 
         models = client.models.list()
         model_name = models.data[0].id
         print(f"Server model: {model_name}")
+
+        if warmup_prompts:
+            print(f"Warming up with {len(warmup_prompts)} requests...")
+            for i, wp in enumerate(warmup_prompts):
+                stream = client.chat.completions.create(
+                    model=model_name,
+                    messages=[{"role": "user", "content": wp}],
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    stream=True,
+                )
+                for _ in stream:
+                    pass
+                print(f"  warmup [{i + 1}/{len(warmup_prompts)}] done")
+            print()
+
         print(f"Running {len(prompts)} prompts (max_tokens={max_tokens}, temperature={temperature})\n")
 
         self.start()

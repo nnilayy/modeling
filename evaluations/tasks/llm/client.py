@@ -31,7 +31,9 @@ parser.add_argument("--engine", required=True, help="Engine name (vllm, sglang, 
 args = parser.parse_args()
 
 base_url = config["server"]["base_url"]
-prompts = json.load(open(config["data"]["prompts_file"]))
+prompt_data = json.load(open(config["data"]["prompts_file"]))
+warmup_prompts = prompt_data["warmup"]
+prompts = prompt_data["prompts"]
 
 # ── components ──────────────────────────────────────────
 store = RequestStore()
@@ -46,6 +48,7 @@ mc.add(latency_collector)
 mc.run(
     base_url=base_url,
     prompts=prompts,
+    warmup_prompts=warmup_prompts,
     max_tokens=config["generation"]["max_tokens"],
     temperature=config["generation"].get("temperature", 0.0),
 )

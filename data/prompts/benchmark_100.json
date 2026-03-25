@@ -1,5 +1,13 @@
-[
-  "Explain how a neural network learns through backpropagation, including the role of loss functions and gradient descent.",
+{
+  "warmup": [
+    "What is 2 + 2? Explain your reasoning step by step.",
+    "Write a short paragraph about the color blue.",
+    "List the first ten prime numbers and explain what makes a number prime.",
+    "Summarize the plot of Romeo and Juliet in five sentences.",
+    "Explain what an API is to someone who has never programmed before."
+  ],
+  "prompts": [
+    "Explain how a neural network learns through backpropagation, including the role of loss functions and gradient descent.",
   "What were the main causes and consequences of the French Revolution?",
   "Describe the rules and scoring system of cricket, including the difference between Test matches and T20.",
   "How does the TCP/IP protocol stack work, and what happens step by step when you load a webpage in your browser?",
@@ -99,4 +107,5 @@
   "Describe the life and achievements of Alexander the Great and the extent of his empire.",
   "How does speech recognition technology work, from audio signal processing to language model decoding?",
   "What were the technological and social changes brought about by the invention of the printing press?"
-]
+  ]
+}
