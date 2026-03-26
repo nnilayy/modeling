@@ -44,6 +44,9 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
     if m.get("revision"):
         cmd += ["--revision", m["revision"]]
 
+    if m.get("max_model_len"):
+        cmd += ["--max-model-len", str(m["max_model_len"])]
+
     cmd += ["--gpu-memory-utilization", str(mem["gpu_memory_utilization"])]
     cmd += ["--kv-cache-dtype", mem["kv_cache_dtype"]]
 

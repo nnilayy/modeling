@@ -3,6 +3,7 @@ model:
   revision: "main"
   dtype: "bfloat16"
   quantization: null
+  max_model_len: 32768
 
 metadata:
   family: "qwen_3"
