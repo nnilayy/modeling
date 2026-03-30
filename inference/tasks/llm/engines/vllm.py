@@ -80,6 +80,11 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
     if tools.get("tool_call_parser"):
         cmd += ["--tool-call-parser", tools["tool_call_parser"]]
 
+    chat_tpl = engine_cfg.get("chat_template", {})
+    if chat_tpl:
+        import json
+        cmd += ["--chat-template-kwargs", json.dumps(chat_tpl)]
+
     if log.get("disable_log_stats"):
         cmd += ["--disable-log-stats"]
 

@@ -23,6 +23,9 @@ tool_calling:
   enable_auto_tool_choice: true
   tool_call_parser: "hermes"
 
+chat_template:
+  enable_thinking: false
+
 parallelism:
   tensor_parallel_size: 1
   pipeline_parallel_size: 1
