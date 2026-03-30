@@ -8,7 +8,6 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import signal
 import subprocess
 import sys
@@ -44,7 +43,7 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
         cmd += ["--quantization", m["quantization"]]
 
     if m.get("revision"):
-        cmd += ["--hf-model-revision", m["revision"]]
+        cmd += ["--revision", m["revision"]]
 
     if m.get("max_model_len"):
         cmd += ["--context-length", str(m["max_model_len"])]
@@ -79,8 +78,8 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
         cmd += ["--tool-call-parser", tools["tool_call_parser"]]
 
     chat_tpl = engine_cfg.get("chat_template", {})
-    if chat_tpl:
-        cmd += ["--default-chat-template-kwargs", json.dumps(chat_tpl)]
+    if chat_tpl.get("path"):
+        cmd += ["--chat-template", chat_tpl["path"]]
 
     if log.get("log_level"):
         cmd += ["--log-level", log["log_level"]]

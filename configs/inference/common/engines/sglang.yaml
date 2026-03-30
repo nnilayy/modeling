@@ -20,8 +20,9 @@ performance:
 tool_calling:
   tool_call_parser: "qwen"
 
-chat_template:
-  enable_thinking: false
+# thinking mode: controlled per-request via chat_template_kwargs in API body
+# pass {"chat_template_kwargs": {"enable_thinking": false}} to disable
+chat_template: {}
 
 parallelism:
   tensor_parallel_size: 1
