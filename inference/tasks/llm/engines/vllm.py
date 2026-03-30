@@ -62,6 +62,9 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
     if perf.get("enable_prompt_tokens_details"):
         cmd += ["--enable-prompt-tokens-details"]
 
+    if perf.get("disable_frontend_multiprocessing"):
+        cmd += ["--disable-frontend-multiprocessing"]
+
     cmd += ["--max-num-seqs", str(perf["max_num_seqs"])]
     cmd += ["--max-num-batched-tokens", str(perf["max_num_batched_tokens"])]
 
