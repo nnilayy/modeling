@@ -19,6 +19,10 @@ performance:
   max_num_seqs: 256
   max_num_batched_tokens: 8192
 
+tool_calling:
+  enable_auto_tool_choice: true
+  tool_call_parser: "hermes"
+
 parallelism:
   tensor_parallel_size: 1
   pipeline_parallel_size: 1

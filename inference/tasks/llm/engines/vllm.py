@@ -74,6 +74,12 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
     if srv.get("trust_remote_code"):
         cmd += ["--trust-remote-code"]
 
+    tools = engine_cfg.get("tool_calling", {})
+    if tools.get("enable_auto_tool_choice"):
+        cmd += ["--enable-auto-tool-choice"]
+    if tools.get("tool_call_parser"):
+        cmd += ["--tool-call-parser", tools["tool_call_parser"]]
+
     if log.get("disable_log_stats"):
         cmd += ["--disable-log-stats"]
 
