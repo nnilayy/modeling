@@ -5,14 +5,23 @@ engine:
 server:
   host: "0.0.0.0"
   port: 8000
+  random_seed: 42
   trust_remote_code: true
 
 memory:
-  mem_fraction_static: 0.80
+  mem_fraction_static: 0.90
+  kv_cache_dtype: "auto"
 
 performance:
   chunked_prefill_size: 8192
+  max_running_requests: 4
   schedule_policy: "lpm"
+
+tool_calling:
+  tool_call_parser: "qwen"
+
+chat_template:
+  enable_thinking: false
 
 parallelism:
   tensor_parallel_size: 1

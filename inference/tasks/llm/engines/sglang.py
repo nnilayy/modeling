@@ -3,11 +3,12 @@ SGLang inference engine — launches an SGLang server from model + engine YAMLs.
 
 Usage:
     python -m inference.tasks.llm.engines.sglang \
-        configs/inference/tasks/llm/qwen/qwen_3.5/4b/fp8.yaml
+        configs/inference/tasks/llm/qwen/qwen_3/8b/base.yaml
 """
 
 from __future__ import annotations
 
+import json
 import signal
 import subprocess
 import sys
@@ -43,12 +44,21 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
         cmd += ["--quantization", m["quantization"]]
 
     if m.get("revision"):
-        cmd += ["--revision", m["revision"]]
+        cmd += ["--hf-model-revision", m["revision"]]
+
+    if m.get("max_model_len"):
+        cmd += ["--context-length", str(m["max_model_len"])]
 
     cmd += ["--mem-fraction-static", str(mem["mem_fraction_static"])]
 
+    if mem.get("kv_cache_dtype") and mem["kv_cache_dtype"] != "auto":
+        cmd += ["--kv-cache-dtype", mem["kv_cache_dtype"]]
+
     if perf.get("chunked_prefill_size"):
         cmd += ["--chunked-prefill-size", str(perf["chunked_prefill_size"])]
+
+    if perf.get("max_running_requests"):
+        cmd += ["--max-running-requests", str(perf["max_running_requests"])]
 
     if perf.get("schedule_policy"):
         cmd += ["--schedule-policy", perf["schedule_policy"]]
@@ -58,8 +68,19 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
     cmd += ["--host", srv["host"]]
     cmd += ["--port", str(srv["port"])]
 
+    if srv.get("random_seed") is not None:
+        cmd += ["--random-seed", str(srv["random_seed"])]
+
     if srv.get("trust_remote_code"):
         cmd += ["--trust-remote-code"]
+
+    tools = engine_cfg.get("tool_calling", {})
+    if tools.get("tool_call_parser"):
+        cmd += ["--tool-call-parser", tools["tool_call_parser"]]
+
+    chat_tpl = engine_cfg.get("chat_template", {})
+    if chat_tpl:
+        cmd += ["--default-chat-template-kwargs", json.dumps(chat_tpl)]
 
     if log.get("log_level"):
         cmd += ["--log-level", log["log_level"]]
