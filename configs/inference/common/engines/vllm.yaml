@@ -19,7 +19,7 @@ performance:
   enable_prompt_tokens_details: true
   disable_frontend_multiprocessing: true
   max_num_seqs: 4
-  max_num_batched_tokens: 4096
+  max_num_batched_tokens: 8192
 
 tool_calling:
   enable_auto_tool_choice: true
