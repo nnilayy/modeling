@@ -1,0 +1,10 @@
+model:
+  name: "Qwen/Qwen3-1.7B"
+  temperature: 0.0
+  enable_thinking: false
+
+metadata:
+  family: "qwen_3"
+  provider: "alibaba"
+  params_billion: 1.7
+  architecture: "dense"

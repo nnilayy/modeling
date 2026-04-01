@@ -1,0 +1,16 @@
+benchmark:
+  name: "bfcl_v4"
+  framework: "evalscope"
+
+server:
+  base_url: "http://0.0.0.0:8000/v1"
+  api_key: "dummy"
+
+dataset:
+  name: "bfcl_v4"
+
+evaluation:
+  batch_size: 100
+
+output:
+  dir: "results/evaluations/llm/bfcl_v4"
