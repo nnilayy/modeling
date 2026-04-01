@@ -143,6 +143,7 @@ def shutdown_server(process: subprocess.Popen, log_file) -> None:
     _server_state.clear()
 
 
+
 def build_evalscope_config(
     model_cfg: dict, benchmark_cfg: dict, api_url: str
 ) -> dict:
@@ -173,7 +174,11 @@ def build_evalscope_config(
         "eval_batch_size": evaluation.get("batch_size", 10),
         "generation_config": generation_config,
         "work_dir": work_dir,
+        "no_timestamp": True,
     }
+
+    if Path(work_dir).exists():
+        task_cfg["use_cache"] = work_dir
 
     subset = dataset.get("subset")
     if subset:
@@ -194,7 +199,10 @@ def run_evalscope(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
     benchmark_name = benchmark_cfg["benchmark"]["name"]
 
     print(f"  Running {benchmark_name} evaluation...")
-    print(f"  Output → {task_dict['work_dir']}\n")
+    print(f"  Output → {task_dict['work_dir']}")
+    if task_dict.get("use_cache"):
+        print(f"  Cache  → {task_dict['use_cache']}")
+    print()
 
     task_cfg = TaskConfig(**task_dict)
     run_task(task_cfg=task_cfg)
