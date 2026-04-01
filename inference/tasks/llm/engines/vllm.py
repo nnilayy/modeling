@@ -4,10 +4,14 @@ vLLM inference engine — launches a vLLM server from model + engine YAMLs.
 Usage:
     python -m inference.tasks.llm.engines.vllm \
         configs/inference/tasks/llm/qwen/qwen3.5/4b.yaml
+
+    python -m inference.tasks.llm.engines.vllm \
+        configs/inference/tasks/llm/qwen/qwen3.5/4b.yaml --port 8001
 """
 
 from __future__ import annotations
 
+import argparse
 import signal
 import subprocess
 import sys
@@ -112,12 +116,16 @@ def wait_for_healthy(host: str, port: int, timeout: int = 300) -> None:
 
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python -m inference.tasks.llm.engines.vllm <model.yaml>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Launch vLLM server")
+    parser.add_argument("model_yaml", help="Path to model YAML config")
+    parser.add_argument("--port", type=int, default=None, help="Override server port")
+    args = parser.parse_args()
 
-    model_cfg = load_yaml(Path(sys.argv[1]))
+    model_cfg = load_yaml(Path(args.model_yaml))
     engine_cfg = load_yaml(ENGINE_YAML)
+
+    if args.port is not None:
+        engine_cfg["server"]["port"] = args.port
 
     cmd = build_command(model_cfg, engine_cfg)
 

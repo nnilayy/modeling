@@ -6,10 +6,15 @@ Usage:
     python -m evaluations.tasks.llm.benchmarks.run \
         configs/evaluations/tasks/llm/models/qwen/qwen_3/1.7b/base.yaml \
         configs/evaluations/tasks/llm/bfcl_v4.yaml
+
+    python -m evaluations.tasks.llm.benchmarks.run \
+        configs/evaluations/tasks/llm/models/qwen/qwen_3/1.7b/base.yaml \
+        configs/evaluations/tasks/llm/bfcl_v4.yaml --port 8001
 """
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -94,15 +99,23 @@ FRAMEWORK_DISPATCH = {
 
 
 def main():
-    if len(sys.argv) != 3:
-        print(
-            "Usage: python -m evaluations.tasks.llm.benchmarks.run "
-            "<model.yaml> <benchmark.yaml>"
-        )
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Run benchmark evaluation")
+    parser.add_argument("model_yaml", help="Path to model YAML config")
+    parser.add_argument("benchmark_yaml", help="Path to benchmark YAML config")
+    parser.add_argument("--port", type=int, default=None, help="Override server port")
+    args = parser.parse_args()
 
-    model_cfg = load_yaml(Path(sys.argv[1]))
-    benchmark_cfg = load_yaml(Path(sys.argv[2]))
+    model_cfg = load_yaml(Path(args.model_yaml))
+    benchmark_cfg = load_yaml(Path(args.benchmark_yaml))
+
+    if args.port is not None:
+        base_url = benchmark_cfg["server"]["base_url"]
+        parts = base_url.rsplit(":", 1)
+        path_suffix = ""
+        if "/" in parts[-1]:
+            port_and_path = parts[-1].split("/", 1)
+            path_suffix = "/" + port_and_path[1]
+        benchmark_cfg["server"]["base_url"] = f"{parts[0]}:{args.port}{path_suffix}"
 
     framework = benchmark_cfg["benchmark"]["framework"]
     runner = FRAMEWORK_DISPATCH.get(framework)
