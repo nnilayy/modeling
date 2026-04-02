@@ -6,6 +6,9 @@ server:
   base_url: "http://0.0.0.0:8000/v1"
   api_key: "dummy"
 
+vllm_overrides:
+  max_num_seqs: 256
+
 dataset:
   name: "bfcl_v4"
 

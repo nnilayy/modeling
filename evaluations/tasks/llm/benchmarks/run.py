@@ -40,12 +40,15 @@ def slugify(name: str) -> str:
     return re.sub(r"[^\w\-.]", "-", name).strip("-")
 
 
-def build_vllm_command(model_cfg: dict, engine_cfg: dict, port: int) -> list[str]:
+def build_vllm_command(
+    model_cfg: dict, engine_cfg: dict, port: int, benchmark_cfg: dict | None = None
+) -> list[str]:
     m = model_cfg["model"]
     srv = engine_cfg["server"]
     mem = engine_cfg["memory"]
     perf = engine_cfg["performance"]
     par = engine_cfg["parallelism"]
+    overrides = (benchmark_cfg or {}).get("vllm_overrides", {})
 
     cmd = ["vllm", "serve", m["name"], "--dtype", m.get("dtype", "auto")]
 
@@ -59,7 +62,9 @@ def build_vllm_command(model_cfg: dict, engine_cfg: dict, port: int) -> list[str
         cmd += ["--enable-prefix-caching"]
     if perf.get("enable_chunked_prefill"):
         cmd += ["--enable-chunked-prefill"]
-    cmd += ["--max-num-seqs", str(perf["max_num_seqs"])]
+
+    max_num_seqs = overrides.get("max_num_seqs", perf["max_num_seqs"])
+    cmd += ["--max-num-seqs", str(max_num_seqs)]
     cmd += ["--max-num-batched-tokens", str(perf["max_num_batched_tokens"])]
     cmd += ["--tensor-parallel-size", str(par["tensor_parallel_size"])]
 
@@ -92,9 +97,11 @@ def wait_for_healthy(host: str, port: int, timeout: int = 1200) -> None:
     raise TimeoutError(f"vLLM server not healthy after {timeout}s at {url}")
 
 
-def start_server(model_cfg: dict, port: int) -> tuple[subprocess.Popen, Path]:
+def start_server(
+    model_cfg: dict, port: int, benchmark_cfg: dict | None = None
+) -> tuple[subprocess.Popen, Path]:
     engine_cfg = load_yaml(ENGINE_YAML)
-    cmd = build_vllm_command(model_cfg, engine_cfg, port)
+    cmd = build_vllm_command(model_cfg, engine_cfg, port, benchmark_cfg)
     host = engine_cfg["server"]["host"]
 
     log_path = Path(f"logs/vllm_server_{port}.log")
@@ -256,7 +263,7 @@ def main():
     print(f"  Server:    {api_url}")
     print(f"{'='*60}\n")
 
-    process, log_path = start_server(model_cfg, port)
+    process, log_path = start_server(model_cfg, port, benchmark_cfg)
 
     try:
         runner(model_cfg, benchmark_cfg, api_url)
