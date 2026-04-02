@@ -78,7 +78,7 @@ def build_vllm_command(model_cfg: dict, engine_cfg: dict, port: int) -> list[str
     return cmd
 
 
-def wait_for_healthy(host: str, port: int, timeout: int = 600) -> None:
+def wait_for_healthy(host: str, port: int, timeout: int = 1200) -> None:
     url = f"http://{host}:{port}/health"
     start = time.time()
     while time.time() - start < timeout:
