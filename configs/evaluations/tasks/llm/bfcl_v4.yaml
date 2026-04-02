@@ -13,7 +13,7 @@ dataset:
   name: "bfcl_v4"
 
 evaluation:
-  batch_size: 100
+  batch_size: 256
 
 output:
   dir: "results/evaluations/llm/bfcl_v4"
