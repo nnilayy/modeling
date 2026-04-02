@@ -7,13 +7,13 @@ server:
   api_key: "dummy"
 
 vllm_overrides:
-  max_num_seqs: 256
+  max_num_seqs: 128
 
 dataset:
   name: "bfcl_v4"
 
 evaluation:
-  batch_size: 256
+  batch_size: 128
 
 output:
   dir: "results/evaluations/llm/bfcl_v4"
