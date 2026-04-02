@@ -1,0 +1,13 @@
+model:
+  name: "nilay-samora/qwen3-8b-gptq-int4"
+  dtype: "auto"
+  temperature: 0.0
+  enable_thinking: false
+
+metadata:
+  family: "qwen_3"
+  provider: "alibaba"
+  params_billion: 8.0
+  architecture: "dense"
+  base_model: "Qwen/Qwen3-8B"
+  quantization_method: "gptq_int4"

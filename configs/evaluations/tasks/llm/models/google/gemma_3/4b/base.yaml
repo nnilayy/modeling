@@ -1,0 +1,10 @@
+model:
+  name: "google/gemma-3-4b-it"
+  dtype: "bfloat16"
+  temperature: 0.0
+
+metadata:
+  family: "gemma_3"
+  provider: "google"
+  params_billion: 4.0
+  architecture: "dense"

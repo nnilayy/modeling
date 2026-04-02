@@ -1,0 +1,12 @@
+model:
+  name: "Qwen/Qwen3-32B"
+  dtype: "bfloat16"
+  temperature: 0.0
+  enable_thinking: false
+  max_model_len: 32768
+
+metadata:
+  family: "qwen_3"
+  provider: "alibaba"
+  params_billion: 32.0
+  architecture: "dense"

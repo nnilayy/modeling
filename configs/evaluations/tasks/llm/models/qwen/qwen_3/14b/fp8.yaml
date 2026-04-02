@@ -1,0 +1,13 @@
+model:
+  name: "nilay-samora/qwen3-14b-fp8"
+  dtype: "auto"
+  temperature: 0.0
+  enable_thinking: false
+
+metadata:
+  family: "qwen_3"
+  provider: "alibaba"
+  params_billion: 14.0
+  architecture: "dense"
+  base_model: "Qwen/Qwen3-14B"
+  quantization_method: "fp8_dynamic"

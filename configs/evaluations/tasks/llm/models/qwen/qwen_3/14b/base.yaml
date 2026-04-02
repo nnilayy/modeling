@@ -1,0 +1,11 @@
+model:
+  name: "Qwen/Qwen3-14B"
+  dtype: "bfloat16"
+  temperature: 0.0
+  enable_thinking: false
+
+metadata:
+  family: "qwen_3"
+  provider: "alibaba"
+  params_billion: 14.0
+  architecture: "dense"

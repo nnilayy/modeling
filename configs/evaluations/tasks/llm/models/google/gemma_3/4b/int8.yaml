@@ -1,0 +1,12 @@
+model:
+  name: "nilay-samora/gemma3-4b-int8"
+  dtype: "auto"
+  temperature: 0.0
+
+metadata:
+  family: "gemma_3"
+  provider: "google"
+  params_billion: 4.0
+  architecture: "dense"
+  base_model: "google/gemma-3-4b-it"
+  quantization_method: "w8a8_int8"
