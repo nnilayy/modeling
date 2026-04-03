@@ -1,0 +1,19 @@
+benchmark:
+  name: "mmlu_redux"
+  framework: "evalscope"
+
+server:
+  base_url: "http://0.0.0.0:8000/v1"
+  api_key: "dummy"
+
+vllm_overrides:
+  max_num_seqs: 128
+
+dataset:
+  name: "mmlu_redux"
+
+evaluation:
+  batch_size: 128
+
+output:
+  dir: "results/evaluations/llm/mmlu_redux"
