@@ -247,8 +247,14 @@ def main():
 
     server_cfg = model_cfg.get("server", {})
     base_url = server_cfg.get("base_url", "http://0.0.0.0:8000/v1")
-    port = args.port or parse_port_from_url(base_url)
-    api_url = replace_port_in_url(base_url, port)
+    is_hosted = model_cfg["model"].get("hosted", False)
+
+    if is_hosted:
+        api_url = base_url
+        port = None
+    else:
+        port = args.port or parse_port_from_url(base_url)
+        api_url = replace_port_in_url(base_url, port)
 
     if args.api_key:
         server_cfg["api_key"] = args.api_key
@@ -262,7 +268,6 @@ def main():
 
     model_name = model_cfg["model"]["name"]
     benchmark_name = benchmark_cfg["benchmark"]["name"]
-    is_hosted = model_cfg["model"].get("hosted", False)
 
     print(f"\n{'='*60}")
     print(f"  Benchmark Evaluation")
