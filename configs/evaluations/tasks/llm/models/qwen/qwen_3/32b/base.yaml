@@ -5,6 +5,10 @@ model:
   enable_thinking: false
   max_model_len: 32768
 
+server:
+  base_url: "http://0.0.0.0:8000/v1"
+  api_key: "dummy"
+
 metadata:
   family: "qwen_3"
   provider: "alibaba"

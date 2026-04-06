@@ -178,7 +178,7 @@ def build_evalscope_config(
     task_cfg: dict = {
         "model": model_name,
         "api_url": api_url,
-        "api_key": benchmark_cfg.get("server", {}).get("api_key", "dummy"),
+        "api_key": model_cfg.get("server", {}).get("api_key", "dummy"),
         "eval_type": "openai_api",
         "datasets": [dataset["name"]],
         "eval_batch_size": evaluation.get("batch_size", 10),
@@ -239,14 +239,19 @@ def main():
     parser.add_argument("model_yaml", help="Path to model YAML config")
     parser.add_argument("benchmark_yaml", help="Path to benchmark YAML config")
     parser.add_argument("--port", type=int, default=None, help="Override server port")
+    parser.add_argument("--api-key", type=str, default=None, help="Override API key (for hosted models)")
     args = parser.parse_args()
 
     model_cfg = load_yaml(Path(args.model_yaml))
     benchmark_cfg = load_yaml(Path(args.benchmark_yaml))
 
-    base_url = benchmark_cfg["server"]["base_url"]
+    server_cfg = model_cfg.get("server", {})
+    base_url = server_cfg.get("base_url", "http://0.0.0.0:8000/v1")
     port = args.port or parse_port_from_url(base_url)
     api_url = replace_port_in_url(base_url, port)
+
+    if args.api_key:
+        server_cfg["api_key"] = args.api_key
 
     framework = benchmark_cfg["benchmark"]["framework"]
     runner = FRAMEWORK_DISPATCH.get(framework)
@@ -257,6 +262,7 @@ def main():
 
     model_name = model_cfg["model"]["name"]
     benchmark_name = benchmark_cfg["benchmark"]["name"]
+    is_hosted = model_cfg["model"].get("hosted", False)
 
     print(f"\n{'='*60}")
     print(f"  Benchmark Evaluation")
@@ -264,16 +270,20 @@ def main():
     print(f"  Benchmark: {benchmark_name}")
     print(f"  Framework: {framework}")
     print(f"  Server:    {api_url}")
+    if is_hosted:
+        print(f"  Mode:      hosted (no local server)")
     print(f"{'='*60}\n")
 
-    process, log_path = start_server(model_cfg, port, benchmark_cfg)
-
-    try:
+    if is_hosted:
         runner(model_cfg, benchmark_cfg, api_url)
-    finally:
-        print(f"\n  Shutting down vLLM server (pid={process.pid})...")
-        shutdown_server(process, _server_state.get("log_file", open(log_path, "a")))
-        print(f"  Done.\n")
+    else:
+        process, log_path = start_server(model_cfg, port, benchmark_cfg)
+        try:
+            runner(model_cfg, benchmark_cfg, api_url)
+        finally:
+            print(f"\n  Shutting down vLLM server (pid={process.pid})...")
+            shutdown_server(process, _server_state.get("log_file", open(log_path, "a")))
+            print(f"  Done.\n")
 
 
 if __name__ == "__main__":

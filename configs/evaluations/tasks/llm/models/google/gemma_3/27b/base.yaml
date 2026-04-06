@@ -3,6 +3,10 @@ model:
   dtype: "bfloat16"
   temperature: 0.0
 
+server:
+  base_url: "http://0.0.0.0:8000/v1"
+  api_key: "dummy"
+
 metadata:
   family: "gemma_3"
   provider: "google"
