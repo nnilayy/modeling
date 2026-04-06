@@ -163,6 +163,9 @@ def build_evalscope_config(
     enable_thinking = model.get("enable_thinking", None)
 
     generation_config: dict = {"temperature": temperature}
+    max_tokens = evaluation.get("max_tokens")
+    if max_tokens:
+        generation_config["max_tokens"] = max_tokens
     if enable_thinking is not None:
         generation_config["extra_body"] = {
             "chat_template_kwargs": {"enable_thinking": enable_thinking}

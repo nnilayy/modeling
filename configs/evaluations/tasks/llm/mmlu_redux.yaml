@@ -14,6 +14,7 @@ dataset:
 
 evaluation:
   batch_size: 128
+  max_tokens: 8192
 
 output:
   dir: "results/evaluations/llm/mmlu_redux"
