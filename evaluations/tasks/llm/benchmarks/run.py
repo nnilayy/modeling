@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import json
 import re
 import subprocess
 import sys
@@ -218,8 +219,96 @@ def run_evalscope(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
     run_task(task_cfg=task_cfg)
 
 
+class _TiktokenWrapper:
+    """Wraps tiktoken to match the HuggingFace tokenizer(text).input_ids interface
+    that RULER expects for token counting during prompt generation."""
+
+    def __init__(self, encoding_name: str = "o200k_base"):
+        import tiktoken
+        self._enc = tiktoken.get_encoding(encoding_name)
+
+    def __call__(self, text: str):
+        ids = self._enc.encode(text)
+
+        class _Result:
+            def __init__(self, input_ids):
+                self.input_ids = input_ids
+
+        return _Result(ids)
+
+
+def _patch_ruler_tokenizer_for_openai() -> None:
+    """Replace RULER's get_tokenizer with a tiktoken-backed wrapper so that
+    OpenAI models (which have no HuggingFace tokenizer) can be evaluated."""
+    from lm_eval.tasks.ruler import common_utils
+
+    wrapper = _TiktokenWrapper("o200k_base")
+    common_utils.get_tokenizer = lambda **kwargs: wrapper
+
+
+def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
+    model_name = model_cfg["model"]["name"]
+    evaluation = benchmark_cfg.get("evaluation", {})
+    is_hosted = model_cfg["model"].get("hosted", False)
+    provider = model_cfg.get("metadata", {}).get("provider", "")
+
+    if provider == "openai":
+        _patch_ruler_tokenizer_for_openai()
+        model_type = "local-chat-completions"
+        completions_url = api_url.rstrip("/") + "/chat/completions"
+    else:
+        model_type = "local-completions"
+        completions_url = api_url.rstrip("/") + "/completions"
+
+    model_args = (
+        f"model={model_name}"
+        f",base_url={completions_url}"
+        f",num_concurrent=1"
+        f",max_retries=3"
+        f",tokenized_requests=False"
+    )
+
+    if provider != "openai":
+        model_args += f",tokenizer={model_name}"
+
+    api_key = model_cfg.get("server", {}).get("api_key", "")
+    if api_key and api_key != "dummy":
+        model_args += f",api_key={api_key}"
+
+    tasks = evaluation.get("tasks", "ruler")
+    batch_size = str(evaluation.get("batch_size", 32))
+    max_seq_lengths = evaluation.get("max_seq_lengths", [4096])
+    metadata = json.dumps({"max_seq_lengths": max_seq_lengths})
+
+    output_dir = benchmark_cfg.get("output", {}).get("dir", "results/evaluations/llm/ruler")
+    output_path = str(Path(output_dir) / slugify(model_name))
+
+    benchmark_name = benchmark_cfg["benchmark"]["name"]
+    print(f"  Running {benchmark_name} evaluation...")
+    print(f"  Tasks:  {tasks}")
+    print(f"  Lengths: {max_seq_lengths}")
+    print(f"  Output: {output_path}")
+    print()
+
+    cmd = [
+        sys.executable, "-m", "lm_eval",
+        "--model", model_type,
+        "--model_args", model_args,
+        "--tasks", tasks,
+        "--metadata", metadata,
+        "--batch_size", batch_size,
+        "--output_path", output_path,
+    ]
+
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        print(f"\n  ERROR: lm_eval exited with code {result.returncode}")
+        sys.exit(result.returncode)
+
+
 FRAMEWORK_DISPATCH = {
     "evalscope": run_evalscope,
+    "lm_eval": run_lm_eval,
 }
 
 
