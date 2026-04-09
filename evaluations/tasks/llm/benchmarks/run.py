@@ -263,7 +263,7 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
     model_args = (
         f"model={model_name}"
         f",base_url={completions_url}"
-        f",num_concurrent=128"
+        f",num_concurrent=16"
         f",max_retries=3"
         f",tokenized_requests=False"
     )
