@@ -308,6 +308,9 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
         "--output_path", output_path,
     ]
 
+    if provider == "openai":
+        cli_args += ["--apply_chat_template"]
+
     if provider == "openai" and "ruler" in tasks:
         # lm_eval runs as a subprocess, so in-memory patches don't survive.
         # Use the launcher shim that patches RULER's tokenizer then calls lm_eval.
