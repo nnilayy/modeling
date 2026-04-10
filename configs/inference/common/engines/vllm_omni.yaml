@@ -14,7 +14,7 @@ memory:
 omni:
   enabled: true
   enforce_eager: true
-  stage_configs_path: "fish_speech_s2_pro.yaml"
+  stage_configs_path: null
   stage_init_timeout: 600
 
 parallelism:

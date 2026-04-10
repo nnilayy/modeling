@@ -30,6 +30,21 @@ def load_yaml(path: Path) -> dict:
         return yaml.safe_load(f)
 
 
+def _resolve_stage_configs(name: str | None) -> str:
+    """Find the stage configs YAML shipped inside the vllm_omni package."""
+    if name is None:
+        name = "fish_speech_s2_pro.yaml"
+    try:
+        import vllm_omni
+        pkg_dir = Path(vllm_omni.__file__).parent
+        candidate = pkg_dir / "model_executor" / "stage_configs" / name
+        if candidate.exists():
+            return str(candidate)
+    except ImportError:
+        pass
+    return name
+
+
 def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
     m = model_cfg["model"]
     srv = engine_cfg["server"]
@@ -48,8 +63,8 @@ def build_command(model_cfg: dict, engine_cfg: dict) -> list[str]:
     if omni.get("enforce_eager"):
         cmd += ["--enforce-eager"]
 
-    if omni.get("stage_configs_path"):
-        cmd += ["--stage-configs-path", omni["stage_configs_path"]]
+    stage_cfg_path = _resolve_stage_configs(omni.get("stage_configs_path"))
+    cmd += ["--stage-configs-path", stage_cfg_path]
 
     if omni.get("stage_init_timeout"):
         cmd += ["--stage-init-timeout", str(omni["stage_init_timeout"])]
