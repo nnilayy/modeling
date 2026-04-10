@@ -43,6 +43,7 @@ def synthesize(
         "input": text,
         "voice": voice,
         "response_format": response_format,
+        "max_new_tokens": 4096,
     }
 
     if ref_audio:

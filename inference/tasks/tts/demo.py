@@ -9,6 +9,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import base64
+import mimetypes
 import random
 import time
 from datetime import datetime
@@ -87,6 +89,7 @@ def synthesize(
         "input": text,
         "voice": voice,
         "response_format": "wav",
+        "max_new_tokens": 4096,
     }
     if ref_audio_path:
         body["ref_audio"] = f"file://{ref_audio_path}"
