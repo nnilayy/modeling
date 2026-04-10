@@ -9,9 +9,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import io
-import os
-import tempfile
+import random
 import time
 from datetime import datetime
 from pathlib import Path
@@ -29,6 +27,52 @@ DEFAULT_EXAMPLES = [
     "[angry] This is completely unacceptable!",
     "The quick brown fox jumps over the lazy dog.",
 ]
+
+READING_PROMPTS = [
+    "The old lighthouse keeper watched the storm roll in from the west. Dark clouds gathered "
+    "over the harbor as fishing boats hurried back to shore. He climbed the spiral staircase "
+    "one last time, his weathered hands gripping the iron railing. The beam of light cut through "
+    "the rain, a steady pulse guiding sailors home through the darkness.",
+
+    "Every morning, Clara walked through the garden before sunrise. The dew on the roses caught "
+    "the first light like tiny diamonds scattered across green velvet. She carried a notebook "
+    "where she sketched each new bloom. The quiet hours before the world woke up belonged entirely "
+    "to her and the flowers that seemed to lean toward her gentle voice.",
+
+    "The bookshop on Maple Street had been there longer than anyone could remember. Its shelves "
+    "reached from floor to ceiling, packed with stories waiting to be discovered. The owner, "
+    "a soft-spoken man with silver hair, knew exactly where every book lived. He believed that "
+    "the right story always found the right reader at exactly the right moment.",
+
+    "Rain tapped against the window as the train pulled out of the station. The passenger in "
+    "seat fourteen opened a leather journal and began to write. Outside, green hills rolled past "
+    "like waves frozen in time. The rhythm of the tracks became a kind of music, steady and "
+    "comforting, carrying thoughts forward into the unknown distance ahead.",
+
+    "The marketplace buzzed with energy on Saturday mornings. Vendors called out prices while "
+    "children ran between the stalls chasing each other. A woman selling fresh bread smiled at "
+    "every customer who stopped to smell the warm loaves. The air was thick with spices, roasted "
+    "coffee, and the sound of a dozen conversations happening all at once.",
+
+    "High above the valley, an eagle circled slowly in the warm afternoon air. Below, a river "
+    "wound through the forest like a silver ribbon untangling itself from the trees. The hiker "
+    "paused on the ridge to catch her breath and take in the view. She had walked twelve miles "
+    "that day and every step had been worth this single perfect moment.",
+
+    "Professor Chen adjusted his glasses and looked out at the lecture hall. Three hundred faces "
+    "stared back at him, some eager, some half asleep. He cleared his throat and began with a "
+    "question that had no easy answer. The best lectures, he always said, were the ones that "
+    "left students with more questions than they started with.",
+
+    "The jazz club opened its doors at nine, but the real music never started before midnight. "
+    "A pianist with long fingers warmed up in the corner, playing scales that turned into melodies "
+    "that turned into something nobody had heard before. The bartender polished glasses and nodded "
+    "along. In this room, time moved differently, measured in notes instead of minutes.",
+]
+
+
+def random_reading_prompt() -> str:
+    return random.choice(READING_PROMPTS)
 
 
 def synthesize(
@@ -102,23 +146,36 @@ def build_ui(base_url: str):
                     max_lines=10,
                 )
 
-                with gr.Row():
-                    voice_input = gr.Textbox(
-                        label="Voice",
-                        value="default",
-                        scale=1,
+                with gr.Accordion("Voice Cloning", open=False):
+                    gr.Markdown(
+                        "Record yourself reading the prompt below (10-30 seconds). "
+                        "Your voice will be used for all subsequent generations."
                     )
-                    ref_text_input = gr.Textbox(
-                        label="Reference transcript (for cloning)",
-                        placeholder="Transcript of the reference audio...",
-                        scale=2,
+                    clone_prompt = gr.Textbox(
+                        label="Read this aloud",
+                        value=random_reading_prompt(),
+                        lines=4,
+                        interactive=False,
+                    )
+                    new_prompt_btn = gr.Button("New prompt", size="sm")
+
+                    ref_audio_input = gr.Audio(
+                        label="Record or upload your voice",
+                        type="filepath",
+                        sources=["microphone", "upload"],
                     )
 
-                ref_audio_input = gr.Audio(
-                    label="Reference audio (for voice cloning)",
-                    type="filepath",
-                    sources=["upload"],
-                )
+                    with gr.Row():
+                        voice_input = gr.Textbox(
+                            label="Voice name",
+                            value="default",
+                            scale=1,
+                        )
+                        ref_text_input = gr.Textbox(
+                            label="Reference transcript (auto-filled from prompt)",
+                            placeholder="Transcript of the reference audio...",
+                            scale=2,
+                        )
 
                 with gr.Row():
                     submit_btn = gr.Button("Generate", variant="primary", scale=2)
@@ -204,6 +261,17 @@ def build_ui(base_url: str):
             fn=clear_all,
             outputs=[text_input, voice_input, ref_audio_input, ref_text_input,
                      audio_output, status_output, history_container, history_state],
+        )
+
+        new_prompt_btn.click(
+            fn=lambda: random_reading_prompt(),
+            outputs=[clone_prompt],
+        )
+
+        ref_audio_input.stop_recording(
+            fn=lambda prompt: prompt,
+            inputs=[clone_prompt],
+            outputs=[ref_text_input],
         )
 
     return demo
