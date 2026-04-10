@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import argparse
 import base64
-import mimetypes
 import random
 import time
 from datetime import datetime
@@ -77,12 +76,58 @@ def random_reading_prompt() -> str:
     return random.choice(READING_PROMPTS)
 
 
+def _audio_to_base64(file_path: str) -> str:
+    """Read a local audio file and return a base64 data URL."""
+    path = Path(file_path)
+    suffix = path.suffix.lower().lstrip(".")
+    mime_map = {"wav": "audio/wav", "mp3": "audio/mpeg", "flac": "audio/flac",
+                "ogg": "audio/ogg", "webm": "audio/webm", "m4a": "audio/mp4"}
+    mime = mime_map.get(suffix, "audio/wav")
+    raw = path.read_bytes()
+    b64 = base64.b64encode(raw).decode("ascii")
+    return f"data:{mime};base64,{b64}"
+
+
+def upload_voice(
+    name: str,
+    audio_path: str,
+    ref_text: str,
+    base_url: str,
+    description: str = "",
+) -> dict:
+    """Upload a voice sample via POST /v1/audio/voices for persistent cloning."""
+    url = f"{base_url}/v1/audio/voices"
+    with open(audio_path, "rb") as f:
+        files = {"audio_sample": (Path(audio_path).name, f)}
+        data = {"consent": "self", "name": name}
+        if ref_text:
+            data["ref_text"] = ref_text
+        if description:
+            data["speaker_description"] = description
+        r = requests.post(url, files=files, data=data, timeout=60)
+    r.raise_for_status()
+    return r.json()
+
+
+def list_voices(base_url: str) -> list[str]:
+    """Fetch available voice names from GET /v1/audio/voices."""
+    try:
+        r = requests.get(f"{base_url}/v1/audio/voices", timeout=10)
+        r.raise_for_status()
+        return r.json().get("voices", [])
+    except Exception:
+        return ["default"]
+
+
 def synthesize(
     text: str,
     base_url: str,
     voice: str = "default",
     ref_audio_path: str | None = None,
     ref_text: str | None = None,
+    language: str = "Auto",
+    instructions: str = "",
+    seed: int | None = 42,
 ) -> tuple[bytes, float]:
     url = f"{base_url}/v1/audio/speech"
     body: dict = {
@@ -90,14 +135,19 @@ def synthesize(
         "voice": voice,
         "response_format": "wav",
         "max_new_tokens": 4096,
+        "language": language,
     }
+    if seed is not None:
+        body["seed"] = seed
+    if instructions:
+        body["instructions"] = instructions
     if ref_audio_path:
-        body["ref_audio"] = f"file://{ref_audio_path}"
+        body["ref_audio"] = _audio_to_base64(ref_audio_path)
     if ref_text:
         body["ref_text"] = ref_text
 
     t0 = time.perf_counter()
-    r = requests.post(url, json=body, timeout=120)
+    r = requests.post(url, json=body, timeout=300)
     r.raise_for_status()
     elapsed = time.perf_counter() - t0
     return r.content, elapsed
@@ -127,7 +177,6 @@ def build_ui(base_url: str):
     .main-header h1 { font-size: 1.8rem; font-weight: 700; margin: 0; }
     .main-header p { color: #64748b; font-size: 0.9rem; margin: 0.25rem 0 0 0; }
     .status-bar { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
-    .history-item { border-left: 3px solid #3b82f6; padding-left: 0.75rem; margin-bottom: 0.5rem; }
     footer { display: none !important; }
     """
 
@@ -149,11 +198,34 @@ def build_ui(base_url: str):
                     max_lines=10,
                 )
 
+                with gr.Row():
+                    language_input = gr.Dropdown(
+                        label="Language",
+                        choices=["Auto", "English", "Chinese", "Japanese", "Korean",
+                                 "German", "French", "Russian", "Portuguese", "Spanish", "Italian"],
+                        value="Auto",
+                        scale=1,
+                    )
+                    instructions_input = gr.Textbox(
+                        label="Voice instructions (optional)",
+                        placeholder="e.g. warm female voice, natural conversational tone",
+                        scale=2,
+                    )
+                    seed_input = gr.Number(
+                        label="Seed",
+                        value=42,
+                        precision=0,
+                        scale=1,
+                    )
+
+                # ── Voice Cloning: Upload & Register ──
                 with gr.Accordion("Voice Cloning", open=False):
                     gr.Markdown(
-                        "Record yourself reading the prompt below (10-30 seconds). "
-                        "Your voice will be used for all subsequent generations."
+                        "**Step 1** — Record yourself reading the prompt (10-30s, quiet room, natural pace).  \n"
+                        "**Step 2** — Give the voice a name and click **Upload Voice** to register it on the server.  \n"
+                        "**Step 3** — Select your uploaded voice from the dropdown and generate."
                     )
+
                     clone_prompt = gr.Textbox(
                         label="Read this aloud",
                         value=random_reading_prompt(),
@@ -163,22 +235,52 @@ def build_ui(base_url: str):
                     new_prompt_btn = gr.Button("New prompt", size="sm")
 
                     ref_audio_input = gr.Audio(
-                        label="Record or upload your voice",
+                        label="Record or upload your voice (10-30s)",
                         type="filepath",
                         sources=["microphone", "upload"],
                     )
 
+                    ref_text_input = gr.Textbox(
+                        label="Reference transcript (auto-filled when you stop recording)",
+                        placeholder="Transcript of the reference audio...",
+                        lines=2,
+                    )
+
                     with gr.Row():
-                        voice_input = gr.Textbox(
+                        voice_name_input = gr.Textbox(
                             label="Voice name",
-                            value="default",
-                            scale=1,
-                        )
-                        ref_text_input = gr.Textbox(
-                            label="Reference transcript (auto-filled from prompt)",
-                            placeholder="Transcript of the reference audio...",
+                            placeholder="my_voice",
+                            value="",
                             scale=2,
                         )
+                        voice_desc_input = gr.Textbox(
+                            label="Voice description (optional)",
+                            placeholder="warm male narrator",
+                            value="",
+                            scale=2,
+                        )
+                        upload_btn = gr.Button("Upload Voice", variant="secondary", scale=1)
+
+                    upload_status = gr.Textbox(label="Upload status", interactive=False,
+                                               elem_classes=["status-bar"])
+
+                    gr.Markdown("---")
+                    gr.Markdown("**Or use inline ref_audio** — skip upload and pass reference audio + transcript directly per request.")
+
+                    use_inline_ref = gr.Checkbox(
+                        label="Use inline reference (don't upload, send base64 each request)",
+                        value=False,
+                    )
+
+                # ── Voice selection ──
+                initial_voices = list_voices(base_url)
+                voice_input = gr.Dropdown(
+                    label="Voice",
+                    choices=initial_voices,
+                    value=initial_voices[0] if initial_voices else "default",
+                    allow_custom_value=True,
+                )
+                refresh_voices_btn = gr.Button("Refresh voices", size="sm")
 
                 with gr.Row():
                     submit_btn = gr.Button("Generate", variant="primary", scale=2)
@@ -205,25 +307,60 @@ def build_ui(base_url: str):
 
         gr.Markdown("### History")
         history_container = gr.Dataframe(
-            headers=["Time", "Text", "Latency", "Size", "File"],
-            datatype=["str", "str", "str", "str", "str"],
+            headers=["Time", "Text", "Voice", "Latency", "Size", "File"],
+            datatype=["str", "str", "str", "str", "str", "str"],
             label="Generation history",
             interactive=False,
             wrap=True,
         )
         history_state = gr.State([])
 
-        def generate(text, voice, ref_audio, ref_text, history):
+        # ── Callbacks ──
+
+        def do_upload(audio_path, ref_text, voice_name, voice_desc):
+            if not audio_path:
+                return "No audio recorded/uploaded."
+            if not voice_name or not voice_name.strip():
+                return "Please enter a voice name."
+            try:
+                result = upload_voice(
+                    name=voice_name.strip(),
+                    audio_path=audio_path,
+                    ref_text=ref_text or "",
+                    base_url=base_url,
+                    description=voice_desc or "",
+                )
+                if result.get("success"):
+                    return f"Uploaded '{voice_name.strip()}'. Select it from the Voice dropdown (click Refresh)."
+                return f"Server response: {result}"
+            except requests.HTTPError as e:
+                return f"Upload failed ({e.response.status_code}): {e.response.text[:300]}"
+            except Exception as e:
+                return f"Upload error: {e}"
+
+        def do_refresh_voices():
+            voices = list_voices(base_url)
+            return gr.update(choices=voices, value=voices[0] if voices else "default")
+
+        def generate(text, voice, ref_audio, ref_text, use_inline,
+                     language, instructions, seed, history):
             if not text or not text.strip():
                 return None, "Please enter some text.", history, history
+
+            ref_path = ref_audio if use_inline else None
+            ref_t = ref_text if use_inline else None
+            seed_val = int(seed) if seed is not None else None
 
             try:
                 audio_bytes, elapsed = synthesize(
                     text=text.strip(),
                     base_url=base_url,
                     voice=voice or "default",
-                    ref_audio_path=ref_audio,
-                    ref_text=ref_text or None,
+                    ref_audio_path=ref_path,
+                    ref_text=ref_t or None,
+                    language=language or "Auto",
+                    instructions=instructions or "",
+                    seed=seed_val,
                 )
             except requests.ConnectionError:
                 return None, "Connection refused — is the TTS server running?", history, history
@@ -241,28 +378,47 @@ def build_ui(base_url: str):
             status = f"Done in {elapsed:.2f}s  |  {size_kb:.0f} KB  |  {filename}"
             preview = text[:60] + "..." if len(text) > 60 else text
 
-            history = history + [[ts, preview, f"{elapsed:.2f}s", f"{size_kb:.0f} KB", filename]]
+            history = history + [[ts, preview, voice or "default",
+                                  f"{elapsed:.2f}s", f"{size_kb:.0f} KB", filename]]
 
             return str(out_path), status, history, history
 
         def clear_all():
-            return "", "default", None, "", None, "", [], []
+            return ("", None, "", False, "Auto", "", 42, None, "", [], [])
+
+        # ── Wiring ──
+
+        upload_btn.click(
+            fn=do_upload,
+            inputs=[ref_audio_input, ref_text_input, voice_name_input, voice_desc_input],
+            outputs=[upload_status],
+        )
+
+        refresh_voices_btn.click(
+            fn=do_refresh_voices,
+            outputs=[voice_input],
+        )
 
         submit_btn.click(
             fn=generate,
-            inputs=[text_input, voice_input, ref_audio_input, ref_text_input, history_state],
+            inputs=[text_input, voice_input, ref_audio_input, ref_text_input,
+                    use_inline_ref, language_input, instructions_input, seed_input,
+                    history_state],
             outputs=[audio_output, status_output, history_container, history_state],
         )
 
         text_input.submit(
             fn=generate,
-            inputs=[text_input, voice_input, ref_audio_input, ref_text_input, history_state],
+            inputs=[text_input, voice_input, ref_audio_input, ref_text_input,
+                    use_inline_ref, language_input, instructions_input, seed_input,
+                    history_state],
             outputs=[audio_output, status_output, history_container, history_state],
         )
 
         clear_btn.click(
             fn=clear_all,
-            outputs=[text_input, voice_input, ref_audio_input, ref_text_input,
+            outputs=[text_input, ref_audio_input, ref_text_input, use_inline_ref,
+                     language_input, instructions_input, seed_input,
                      audio_output, status_output, history_container, history_state],
         )
 
