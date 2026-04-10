@@ -133,10 +133,23 @@ def main():
 
     process = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr)
 
+    _shutting_down = False
+
     def shutdown(sig, frame):
+        nonlocal _shutting_down
+        if _shutting_down:
+            print(f"\nForce killing server (pid={process.pid})...")
+            process.kill()
+            sys.exit(1)
+        _shutting_down = True
         print(f"\nShutting down vLLM-Omni server (pid={process.pid})...")
         process.terminate()
-        process.wait(timeout=15)
+        try:
+            process.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            print("Graceful shutdown timed out, killing...")
+            process.kill()
+            process.wait(timeout=5)
         sys.exit(0)
 
     signal.signal(signal.SIGINT, shutdown)

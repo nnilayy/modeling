@@ -243,7 +243,16 @@ def _patch_ruler_tokenizer_for_openai() -> None:
     from lm_eval.tasks.ruler import common_utils
 
     wrapper = _TiktokenWrapper("o200k_base")
-    common_utils.get_tokenizer = lambda **kwargs: wrapper
+    _replacement = lambda *args, **kwargs: wrapper
+    common_utils.get_tokenizer = _replacement
+
+    # qa_utils imports get_tokenizer at module level, so we must also patch
+    # it there (the name is already bound in that module's namespace).
+    try:
+        from lm_eval.tasks.ruler import qa_utils
+        qa_utils.get_tokenizer = _replacement
+    except (ImportError, AttributeError):
+        pass
 
 
 def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
