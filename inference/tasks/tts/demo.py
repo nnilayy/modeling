@@ -206,17 +206,16 @@ def build_ui(base_url: str):
                      audio_output, status_output, history_container, history_state],
         )
 
-    return demo
+    return demo, theme, css
 
 
 def main():
     parser = argparse.ArgumentParser(description="TTS Demo UI")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help="vLLM-Omni server URL")
     parser.add_argument("--port", type=int, default=7860, help="Gradio server port")
-    parser.add_argument("--share", action="store_true", help="Create public Gradio link")
     args = parser.parse_args()
 
-    demo = build_ui(args.base_url)
+    demo, theme, css = build_ui(args.base_url)
     demo.queue()
     demo.launch(
         server_name="0.0.0.0",
