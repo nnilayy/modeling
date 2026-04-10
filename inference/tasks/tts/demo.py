@@ -84,7 +84,7 @@ def build_ui(base_url: str):
     footer { display: none !important; }
     """
 
-    with gr.Blocks(title="Fish Speech S2 Pro — TTS Demo") as demo:
+    with gr.Blocks(theme=theme, css=css, title="Fish Speech S2 Pro — TTS Demo") as demo:
 
         gr.HTML("""
             <div class="main-header">
@@ -206,7 +206,7 @@ def build_ui(base_url: str):
                      audio_output, status_output, history_container, history_state],
         )
 
-    return demo, theme, css
+    return demo
 
 
 def main():
@@ -215,14 +215,12 @@ def main():
     parser.add_argument("--port", type=int, default=7860, help="Gradio server port")
     args = parser.parse_args()
 
-    demo, theme, css = build_ui(args.base_url)
+    demo = build_ui(args.base_url)
     demo.queue()
     demo.launch(
         server_name="0.0.0.0",
         server_port=args.port,
         share=True,
-        theme=theme,
-        css=css,
     )
 
 
