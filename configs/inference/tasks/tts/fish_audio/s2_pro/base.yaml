@@ -1,0 +1,10 @@
+model:
+  name: "fishaudio/s2-pro"
+  revision: "main"
+
+metadata:
+  family: "fish_speech"
+  provider: "fish_audio"
+  params_billion: 4.4
+  architecture: "dual_ar"
+  task: "tts"
