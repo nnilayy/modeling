@@ -299,8 +299,7 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
     print(f"  Output: {output_path}")
     print()
 
-    cmd = [
-        sys.executable, "-m", "lm_eval",
+    cli_args = [
         "--model", model_type,
         "--model_args", model_args,
         "--tasks", tasks,
@@ -309,7 +308,15 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
         "--output_path", output_path,
     ]
 
-    result = subprocess.run(cmd)
+    if provider == "openai" and "ruler" in tasks:
+        # lm_eval runs as a subprocess, so in-memory patches don't survive.
+        # Use the launcher shim that patches RULER's tokenizer then calls lm_eval.
+        shim = str(Path(__file__).parent / "_lm_eval_ruler_shim.py")
+        cmd = [sys.executable, shim] + cli_args
+        result = subprocess.run(cmd)
+    else:
+        cmd = [sys.executable, "-m", "lm_eval"] + cli_args
+        result = subprocess.run(cmd)
     if result.returncode != 0:
         print(f"\n  ERROR: lm_eval exited with code {result.returncode}")
         sys.exit(result.returncode)
