@@ -7,6 +7,7 @@ server:
   port: 8091
   seed: 42
   trust_remote_code: true
+  allowed_local_media_path: "/tmp"
 
 memory:
   gpu_memory_utilization: 0.90
