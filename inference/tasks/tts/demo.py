@@ -84,7 +84,7 @@ def build_ui(base_url: str):
     footer { display: none !important; }
     """
 
-    with gr.Blocks(theme=theme, css=css, title="Fish Speech S2 Pro — TTS Demo") as demo:
+    with gr.Blocks(title="Fish Speech S2 Pro — TTS Demo") as demo:
 
         gr.HTML("""
             <div class="main-header">
@@ -221,7 +221,9 @@ def main():
     demo.launch(
         server_name="0.0.0.0",
         server_port=args.port,
-        share=args.share,
+        share=True,
+        theme=theme,
+        css=css,
     )
 
 
