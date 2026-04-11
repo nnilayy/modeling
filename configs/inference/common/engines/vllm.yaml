@@ -9,9 +9,9 @@ server:
   trust_remote_code: true
 
 memory:
-  gpu_memory_utilization: 0.90
+  gpu_memory_utilization: 0.95
   cpu_offload_gb: 0
-  kv_cache_dtype: "auto"
+  kv_cache_dtype: "fp8"
 
 performance:
   enable_prefix_caching: true
