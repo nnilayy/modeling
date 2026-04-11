@@ -315,6 +315,7 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
         "--metadata", metadata,
         "--batch_size", batch_size,
         "--output_path", output_path,
+        "--log_samples",
     ]
 
     if provider == "openai":
