@@ -57,9 +57,7 @@ def build_vllm_command(
         cmd += ["--max-model-len", str(m["max_model_len"])]
 
     if m.get("rope_scaling"):
-        rs = m["rope_scaling"]
-        for key, val in rs.items():
-            cmd += [f"--rope-scaling.{key}", str(val)]
+        cmd += ["--hf-overrides", json.dumps({"rope_scaling": m["rope_scaling"]})]
 
     cmd += ["--gpu-memory-utilization", str(mem["gpu_memory_utilization"])]
     cmd += ["--kv-cache-dtype", mem["kv_cache_dtype"]]
