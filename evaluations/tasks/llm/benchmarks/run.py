@@ -112,10 +112,16 @@ def start_server(
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_file = open(log_path, "w")
 
+    env = None
+    if model_cfg["model"].get("rope_scaling"):
+        import os
+        env = os.environ.copy()
+        env["VLLM_ALLOW_LONG_MAX_MODEL_LEN"] = "1"
+
     print(f"  Starting vLLM server on port {port}...")
     print(f"  Server logs → {log_path}")
 
-    process = subprocess.Popen(cmd, stdout=log_file, stderr=log_file)
+    process = subprocess.Popen(cmd, stdout=log_file, stderr=log_file, env=env)
 
     _server_state["process"] = process
     _server_state["log_file"] = log_file
