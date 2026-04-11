@@ -70,7 +70,9 @@ def build_vllm_command(
 
     max_num_seqs = overrides.get("max_num_seqs", perf["max_num_seqs"])
     cmd += ["--max-num-seqs", str(max_num_seqs)]
-    cmd += ["--max-num-batched-tokens", str(perf["max_num_batched_tokens"])]
+
+    if perf.get("max_num_batched_tokens"):
+        cmd += ["--max-num-batched-tokens", str(perf["max_num_batched_tokens"])]
     cmd += ["--tensor-parallel-size", str(par["tensor_parallel_size"])]
 
     cmd += ["--host", srv["host"], "--port", str(port)]
@@ -282,7 +284,7 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
     model_args = (
         f"model={model_name}"
         f",base_url={completions_url}"
-        f",num_concurrent=16"
+        f",num_concurrent=32"
         f",max_retries=5"
         f",tokenized_requests=False"
         f",timeout=3600"
