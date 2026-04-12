@@ -8,6 +8,7 @@ vllm_overrides:
 evaluation:
   tasks: "ruler"
   batch_size: 32
+  num_samples: 65
   max_seq_lengths:
     - 4096
     - 8192

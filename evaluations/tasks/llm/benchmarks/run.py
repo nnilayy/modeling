@@ -267,6 +267,39 @@ def _patch_ruler_tokenizer_for_openai() -> None:
         pass
 
 
+def _patch_ruler_num_samples(num_samples: int) -> None:
+    """Patch the installed lm_eval RULER tasks to use a custom num_samples
+    instead of the hardcoded 500. Idempotent — safe to call multiple times."""
+    import lm_eval.tasks.ruler.niah_utils as _mod
+
+    ruler_dir = Path(_mod.__file__).parent
+    targets = ["niah_utils.py", "qa_utils.py", "cwe_utils.py",
+               "fwe_utils.py", "vt_utils.py", "prepare_niah.py"]
+
+    patched = False
+    for fname in targets:
+        fpath = ruler_dir / fname
+        if not fpath.exists():
+            continue
+        text = fpath.read_text()
+        new_text = text.replace("num_samples=500", f"num_samples={num_samples}")
+        new_text = new_text.replace("num_samples: int = 500", f"num_samples: int = {num_samples}")
+        if new_text != text:
+            fpath.write_text(new_text)
+            patched = True
+
+    if patched:
+        # Clear bytecode cache
+        for pyc in ruler_dir.rglob("*.pyc"):
+            pyc.unlink(missing_ok=True)
+        for cache_dir in ruler_dir.rglob("__pycache__"):
+            import shutil
+            shutil.rmtree(cache_dir, ignore_errors=True)
+        print(f"  [ruler] Patched lm_eval RULER tasks: num_samples={num_samples}")
+    else:
+        print(f"  [ruler] lm_eval RULER tasks already set to num_samples={num_samples}")
+
+
 def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
     model_name = model_cfg["model"]["name"]
     evaluation = benchmark_cfg.get("evaluation", {})
@@ -301,6 +334,9 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
     batch_size = str(evaluation.get("batch_size", 32))
     max_seq_lengths = evaluation.get("max_seq_lengths", [4096])
     metadata = json.dumps({"max_seq_lengths": max_seq_lengths})
+
+    if "ruler" in tasks and evaluation.get("num_samples"):
+        _patch_ruler_num_samples(evaluation["num_samples"])
 
     output_dir = benchmark_cfg.get("output", {}).get("dir", "results/evaluations/llm/ruler")
     output_path = str(Path(output_dir) / slugify(model_name))
