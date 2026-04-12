@@ -3,11 +3,11 @@ benchmark:
   framework: "lm_eval"
 
 vllm_overrides:
-  max_num_seqs: 32
+  max_num_seqs: 8
 
 evaluation:
   tasks: "ruler"
-  batch_size: 32
+  batch_size: 8
   num_samples: 65
   max_seq_lengths:
     - 4096
