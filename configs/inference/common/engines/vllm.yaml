@@ -9,7 +9,7 @@ server:
   trust_remote_code: true
 
 memory:
-  gpu_memory_utilization: 0.95
+  gpu_memory_utilization: 0.90
   cpu_offload_gb: 0
   kv_cache_dtype: "fp8"
 
@@ -19,7 +19,7 @@ performance:
   max_num_batched_tokens: 131072
   enable_prompt_tokens_details: true
   disable_frontend_multiprocessing: true
-  max_num_seqs: 96
+  max_num_seqs: 64
 
 tool_calling:
   enable_auto_tool_choice: true
@@ -29,7 +29,7 @@ chat_template:
   enable_thinking: false
 
 parallelism:
-  tensor_parallel_size: 8
+  tensor_parallel_size: 4
   pipeline_parallel_size: 1
 
 logging:

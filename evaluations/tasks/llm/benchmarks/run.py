@@ -59,7 +59,6 @@ def build_vllm_command(
 
     if m.get("rope_scaling"):
         cmd += ["--hf-overrides", json.dumps({"rope_scaling": m["rope_scaling"]})]
-        cmd += ["--enforce-eager"]
 
     cmd += ["--gpu-memory-utilization", str(mem["gpu_memory_utilization"])]
     cmd += ["--kv-cache-dtype", mem["kv_cache_dtype"]]
@@ -318,7 +317,7 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
     model_args = (
         f"model={model_name}"
         f",base_url={completions_url}"
-        f",num_concurrent=96"
+        f",num_concurrent=64"
         f",max_retries=5"
         f",tokenized_requests=False"
         f",timeout=3600"
