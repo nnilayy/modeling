@@ -300,7 +300,10 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
     tasks = evaluation.get("tasks", "ruler")
     batch_size = str(evaluation.get("batch_size", 32))
     max_seq_lengths = evaluation.get("max_seq_lengths", [4096])
-    metadata = json.dumps({"max_seq_lengths": max_seq_lengths})
+    metadata_dict = {"max_seq_lengths": max_seq_lengths}
+    if evaluation.get("num_samples"):
+        metadata_dict["num_samples"] = evaluation["num_samples"]
+    metadata = json.dumps(metadata_dict)
 
     output_dir = benchmark_cfg.get("output", {}).get("dir", "results/evaluations/llm/ruler")
     output_path = str(Path(output_dir) / slugify(model_name))
@@ -330,9 +333,7 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
     if provider == "openai":
         cli_args += ["--apply_chat_template"]
 
-    if provider == "openai" and "ruler" in tasks:
-        # lm_eval runs as a subprocess, so in-memory patches don't survive.
-        # Use the launcher shim that patches RULER's tokenizer then calls lm_eval.
+    if "ruler" in tasks:
         shim = str(Path(__file__).parent / "_lm_eval_ruler_shim.py")
         cmd = [sys.executable, shim] + cli_args
         result = subprocess.run(cmd)
