@@ -300,10 +300,7 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
     tasks = evaluation.get("tasks", "ruler")
     batch_size = str(evaluation.get("batch_size", 32))
     max_seq_lengths = evaluation.get("max_seq_lengths", [4096])
-    metadata_dict = {"max_seq_lengths": max_seq_lengths}
-    if evaluation.get("num_samples"):
-        metadata_dict["num_samples"] = evaluation["num_samples"]
-    metadata = json.dumps(metadata_dict)
+    metadata = json.dumps({"max_seq_lengths": max_seq_lengths})
 
     output_dir = benchmark_cfg.get("output", {}).get("dir", "results/evaluations/llm/ruler")
     output_path = str(Path(output_dir) / slugify(model_name))
