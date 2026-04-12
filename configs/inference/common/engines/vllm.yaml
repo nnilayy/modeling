@@ -16,10 +16,10 @@ memory:
 performance:
   enable_prefix_caching: true
   enable_chunked_prefill: true
-  max_num_batched_tokens: 32768
+  max_num_batched_tokens: 131072
   enable_prompt_tokens_details: true
   disable_frontend_multiprocessing: true
-  max_num_seqs: 16
+  max_num_seqs: 128
 
 tool_calling:
   enable_auto_tool_choice: true
@@ -29,7 +29,7 @@ chat_template:
   enable_thinking: false
 
 parallelism:
-  tensor_parallel_size: 1
+  tensor_parallel_size: 8
   pipeline_parallel_size: 1
 
 logging:
