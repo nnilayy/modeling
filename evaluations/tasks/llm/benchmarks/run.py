@@ -51,7 +51,8 @@ def build_vllm_command(
     par = engine_cfg["parallelism"]
     overrides = (benchmark_cfg or {}).get("vllm_overrides", {})
 
-    cmd = ["vllm", "serve", m["name"], "--dtype", m.get("dtype", "auto")]
+    cmd = [sys.executable, "-m", "vllm.entrypoints.openai.api_server",
+           "--model", m["name"], "--dtype", m.get("dtype", "auto")]
 
     if m.get("max_model_len"):
         cmd += ["--max-model-len", str(m["max_model_len"])]
