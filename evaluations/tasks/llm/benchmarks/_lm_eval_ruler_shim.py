@@ -58,7 +58,7 @@ def _patch_ruler_caching():
 
     try:
         from lm_eval.tasks.ruler import cwe_utils
-        for name in ["ruler_cwe"]:
+        for name in ["get_cw_dataset"]:
             if hasattr(cwe_utils, name):
                 modules_and_funcs.append((cwe_utils, name, getattr(cwe_utils, name)))
     except ImportError:
@@ -66,7 +66,7 @@ def _patch_ruler_caching():
 
     try:
         from lm_eval.tasks.ruler import fwe_utils
-        for name in ["ruler_fwe"]:
+        for name in ["fwe_download"]:
             if hasattr(fwe_utils, name):
                 modules_and_funcs.append((fwe_utils, name, getattr(fwe_utils, name)))
     except ImportError:
@@ -74,7 +74,7 @@ def _patch_ruler_caching():
 
     try:
         from lm_eval.tasks.ruler import vt_utils
-        for name in ["ruler_vt"]:
+        for name in ["get_vt_dataset"]:
             if hasattr(vt_utils, name):
                 modules_and_funcs.append((vt_utils, name, getattr(vt_utils, name)))
     except ImportError:
@@ -82,7 +82,7 @@ def _patch_ruler_caching():
 
     try:
         from lm_eval.tasks.ruler import qa_utils
-        for name in ["ruler_qa_squad", "ruler_qa_hotpot"]:
+        for name in ["get_squad", "get_hotpotqa"]:
             if hasattr(qa_utils, name):
                 modules_and_funcs.append((qa_utils, name, getattr(qa_utils, name)))
     except ImportError:
