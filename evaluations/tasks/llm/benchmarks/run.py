@@ -312,8 +312,6 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
     print(f"  Output: {output_path}")
     print()
 
-    limit = evaluation.get("limit")
-
     cli_args = [
         "--model", model_type,
         "--model_args", model_args,
@@ -323,9 +321,6 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
         "--output_path", output_path,
         "--log_samples",
     ]
-
-    if limit is not None:
-        cli_args += ["--limit", str(limit)]
 
     if provider == "openai":
         cli_args += ["--apply_chat_template"]
