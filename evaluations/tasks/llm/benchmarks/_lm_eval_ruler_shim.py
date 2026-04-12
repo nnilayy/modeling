@@ -121,8 +121,13 @@ if _num_samples is not None:
     qa_utils.generate_samples = _patched_qa_gen
 
 # ---------------------------------------------------------------------------
-# 4. Hand off to lm_eval CLI
+# 4. Verify patches and hand off to lm_eval CLI
 # ---------------------------------------------------------------------------
+if _num_samples is not None:
+    from lm_eval.tasks.ruler import niah_utils as _verify
+    print(f"[shim] num_samples={_num_samples}, "
+          f"niah generate_samples patched={_verify.generate_samples is not _orig_niah_gen}")
+
 sys.argv = ["lm_eval"] + sys.argv[1:]
 
 from lm_eval.__main__ import cli_evaluate  # noqa: E402
