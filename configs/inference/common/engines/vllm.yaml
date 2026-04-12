@@ -16,9 +16,10 @@ memory:
 performance:
   enable_prefix_caching: true
   enable_chunked_prefill: true
+  max_num_batched_tokens: 131072
   enable_prompt_tokens_details: true
   disable_frontend_multiprocessing: true
-  max_num_seqs: 4
+  max_num_seqs: 32
 
 tool_calling:
   enable_auto_tool_choice: true
