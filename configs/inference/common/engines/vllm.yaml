@@ -29,7 +29,7 @@ chat_template:
   enable_thinking: false
 
 parallelism:
-  tensor_parallel_size: 4
+  tensor_parallel_size: 8
   pipeline_parallel_size: 1
 
 logging:
