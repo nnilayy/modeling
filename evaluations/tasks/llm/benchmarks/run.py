@@ -58,7 +58,10 @@ def build_vllm_command(
         cmd += ["--max-model-len", str(m["max_model_len"])]
 
     if m.get("rope_scaling"):
-        cmd += ["--hf-overrides", json.dumps({"rope_scaling": m["rope_scaling"]})]
+        hf_overrides = {"rope_scaling": m["rope_scaling"]}
+        if m.get("max_model_len"):
+            hf_overrides["max_position_embeddings"] = m["max_model_len"]
+        cmd += ["--hf-overrides", json.dumps(hf_overrides)]
 
     cmd += ["--gpu-memory-utilization", str(mem["gpu_memory_utilization"])]
     cmd += ["--kv-cache-dtype", mem["kv_cache_dtype"]]
@@ -74,6 +77,9 @@ def build_vllm_command(
     if perf.get("max_num_batched_tokens"):
         cmd += ["--max-num-batched-tokens", str(perf["max_num_batched_tokens"])]
     cmd += ["--tensor-parallel-size", str(par["tensor_parallel_size"])]
+
+    if m.get("rope_scaling"):
+        cmd += ["--enforce-eager"]
 
     cmd += ["--host", srv["host"], "--port", str(port)]
     cmd += ["--seed", str(srv["seed"])]
