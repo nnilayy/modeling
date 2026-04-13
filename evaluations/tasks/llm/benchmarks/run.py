@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import json
+import os
 import re
 import subprocess
 import sys
@@ -335,6 +336,7 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
     api_key = model_cfg.get("server", {}).get("api_key", "")
     if api_key and api_key != "dummy":
         model_args += f",api_key={api_key}"
+        os.environ["OPENAI_API_KEY"] = api_key
 
     tasks = evaluation.get("tasks", "ruler")
     batch_size = str(evaluation.get("batch_size", 32))
