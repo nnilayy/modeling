@@ -94,6 +94,21 @@ def _patch_ruler_caching():
         setattr(mod, name, wrapped)
         patched += 1
 
+    # Ensure short-name imports (used by !function in YAML) also see our patches.
+    # lm_eval resolves "!function niah_utils.func" via a relative import that may
+    # create a separate sys.modules entry from "lm_eval.tasks.ruler.niah_utils".
+    import sys as _sys
+    for short, full in [
+        ("niah_utils", "lm_eval.tasks.ruler.niah_utils"),
+        ("cwe_utils", "lm_eval.tasks.ruler.cwe_utils"),
+        ("fwe_utils", "lm_eval.tasks.ruler.fwe_utils"),
+        ("vt_utils", "lm_eval.tasks.ruler.vt_utils"),
+        ("qa_utils", "lm_eval.tasks.ruler.qa_utils"),
+        ("common_utils", "lm_eval.tasks.ruler.common_utils"),
+    ]:
+        if full in _sys.modules:
+            _sys.modules[short] = _sys.modules[full]
+
     print(f"  [ruler-cache] Patched {patched} generation functions with disk caching")
 
 
