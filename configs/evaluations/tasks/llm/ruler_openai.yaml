@@ -1,0 +1,17 @@
+benchmark:
+  name: "ruler"
+  framework: "lm_eval"
+
+evaluation:
+  tasks: "ruler"
+  batch_size: 16
+  num_samples: 65
+  max_seq_lengths:
+    - 4096
+    - 8192
+    - 16384
+    - 32768
+    - 65536
+
+output:
+  dir: "results/evaluations/llm/ruler"

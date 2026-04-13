@@ -321,10 +321,11 @@ def run_lm_eval(model_cfg: dict, benchmark_cfg: dict, api_url: str) -> None:
         model_type = "local-completions"
         completions_url = api_url.rstrip("/") + "/completions"
 
+    num_concurrent = evaluation.get("batch_size", 64)
     model_args = (
         f"model={model_name}"
         f",base_url={completions_url}"
-        f",num_concurrent=64"
+        f",num_concurrent={num_concurrent}"
         f",max_retries=5"
         f",tokenized_requests=False"
         f",timeout=3600"
