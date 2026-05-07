@@ -90,16 +90,18 @@ def build_bench_cmd(
     """Build the `vllm bench serve ...` command string.
 
     Uses the 'random' dataset so no external data is needed.
-    random-input-len matches the context being tested;
-    random-output-len is kept minimal (1 token) since we only
-    care about concurrency capacity, not generation throughput.
+    vLLM treats max-model-len as the TOTAL budget (input + output),
+    so random-input-len = context_length - output_tokens to leave
+    room for the requested output. output_tokens is kept minimal
+    (1) since we only care about concurrency capacity, not
+    generation throughput.
     """
     parts = [
         "vllm", "bench", "serve",
         "--model", model_name,
         "--base-url", f"http://localhost:{port}",
         "--dataset-name", "random",
-        "--random-input-len", str(context_length),
+        "--random-input-len", str(context_length - output_tokens),
         "--random-output-len", str(output_tokens),
         "--num-prompts", str(num_prompts),
     ]
