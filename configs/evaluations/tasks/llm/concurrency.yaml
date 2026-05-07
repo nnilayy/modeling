@@ -5,8 +5,8 @@ evaluation:
     - 8192
     - 16384
     - 32768
-    - 65536
-    - 131072
+    # - 65536
+    # - 131072
   num_prompts: 256
   output_tokens: 512
   workload_var: "max_concurrency"
