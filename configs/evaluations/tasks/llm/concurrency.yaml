@@ -8,7 +8,7 @@ evaluation:
     # - 65536
     # - 131072
   num_prompts: 256
-  output_tokens: 512
+  output_tokens: 1
   workload_var: "max_concurrency"
   workload_iters: 5
   num_runs: 1
