@@ -1,0 +1,17 @@
+evaluation:
+  name: "concurrency"
+  context_lengths:
+    - 4096
+    - 8192
+    - 16384
+    - 32768
+    - 65536
+    - 131072
+  num_prompts: 256
+  output_tokens: 1
+  workload_var: "max_concurrency"
+  workload_iters: 10
+  num_runs: 3
+
+output:
+  dir: "results/evaluations/llm/concurrency"
