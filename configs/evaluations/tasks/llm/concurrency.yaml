@@ -10,8 +10,8 @@ evaluation:
   num_prompts: 256
   output_tokens: 1
   workload_var: "max_concurrency"
-  workload_iters: 10
-  num_runs: 3
+  workload_iters: 5
+  num_runs: 1
 
 output:
   dir: "results/evaluations/llm/concurrency"
