@@ -199,7 +199,7 @@ openai==2.24.0
 openai-harmony==0.0.8
 openai-whisper==20250625
 opencc-python-reimplemented==0.1.7
-opencv-python-headless==4.13.0.92
+opencv-python-headless
 opentelemetry-api==1.40.0
 opentelemetry-exporter-otlp==1.40.0
 opentelemetry-exporter-otlp-proto-common==1.40.0
