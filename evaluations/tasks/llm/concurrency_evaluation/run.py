@@ -255,14 +255,6 @@ def build_serve_cmd(
     if mem.get("cpu_offload_gb", 0):
         parts += ["--cpu-offload-gb", str(mem["cpu_offload_gb"])]
 
-    if m.get("rope_scaling"):
-        hf_overrides = {
-            "rope_scaling": m["rope_scaling"],
-            "max_position_embeddings": max_model_len,
-        }
-        parts += ["--hf-overrides", json.dumps(hf_overrides)]
-        parts += ["--enforce-eager"]
-
     return parts
 
 
@@ -690,14 +682,10 @@ async def run_bucket(
 
     print("  starting vllm serve...")
     log_path = bucket_dir / "vllm_server.log"
-    env = os.environ.copy()
-    if any("hf-overrides" in p for p in serve_cmd):
-        env["VLLM_ALLOW_LONG_MAX_MODEL_LEN"] = "1"
-
     log_file = open(log_path, "w")
     proc = subprocess.Popen(
         serve_cmd,
-        env=env,
+        env=os.environ.copy(),
         stdout=log_file,
         stderr=subprocess.STDOUT,
         start_new_session=True,
