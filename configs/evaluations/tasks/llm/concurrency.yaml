@@ -1,17 +1,37 @@
-evaluation:
-  name: "concurrency"
-  context_lengths:
-    - 4096
-    - 8192
-    - 16384
-    - 32768
-    # - 65536
-    # - 131072
+# Concurrency capacity evaluation.
+#
+# For each bucket the runner: starts a vLLM server with max_model_len sized for
+# the bucket, fires `load.num_prompts` requests simultaneously, and polls the
+# server's /metrics endpoint to capture peak `vllm:num_requests_running`.
+#
+# Driven by: evaluations/tasks/llm/concurrency_evaluation/run.py
+
+dataset:
+  hf_repo: "nnilayy/pg19-concurrency-bench"
+  buckets:
+    - "01k"
+    - "02k"
+    - "04k"
+    - "08k"
+    - "16k"
+    - "32k"
+
+request:
+  endpoint: "/v1/chat/completions"
+  max_completion_tokens: 32
+  temperature: 0.0
+  per_request_timeout_s: 600
+
+load:
   num_prompts: 256
-  output_tokens: 1
-  workload_var: "max_concurrency"
-  workload_iters: 5
-  num_runs: 1
+  warmup_requests: 1
+
+server:
+  startup_timeout_s: 900
+  ready_poll_interval_s: 2.0
+  shutdown_timeout_s: 30
+  metrics_poll_interval_s: 0.1
+  max_model_len_headroom: 128
 
 output:
-  dir: "results/evaluations/llm/concurrency"
+  dir: "results/concurrency"
