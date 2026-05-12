@@ -661,9 +661,13 @@ async def run_bucket(
         return None
 
     bucket_tokens = BUCKET_TOKENS[bucket]
-    headroom = int(
-        concurrency_cfg["server"].get("max_model_len_headroom", 128)
-    )
+    server_cfg = concurrency_cfg["server"]
+    if "max_model_len_headroom" in server_cfg:
+        headroom = int(server_cfg["max_model_len_headroom"])
+    else:
+        factor = float(server_cfg.get("max_model_len_headroom_factor", 0.30))
+        min_headroom = int(server_cfg.get("max_model_len_min_headroom", 512))
+        headroom = max(int(bucket_tokens * factor), min_headroom)
     max_model_len = bucket_tokens + headroom
 
     serve_cmd = build_serve_cmd(model_cfg, engine_cfg, max_model_len, port)

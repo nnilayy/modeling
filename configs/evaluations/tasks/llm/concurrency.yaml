@@ -31,7 +31,10 @@ server:
   ready_poll_interval_s: 2.0
   shutdown_timeout_s: 30
   metrics_poll_interval_s: 0.1
-  max_model_len_headroom: 128
+  # max_model_len = bucket_tokens + max_model_len_headroom.
+  # Empirically Qwen3 chat-template + system prompt = ~97 tokens fixed overhead;
+  # add completion budget (32) + body tokenization variance buffer (~150).
+  max_model_len_headroom: 384
 
 output:
   dir: "results/concurrency"
