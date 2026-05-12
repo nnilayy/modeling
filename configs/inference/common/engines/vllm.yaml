@@ -9,7 +9,7 @@ server:
   trust_remote_code: true
 
 memory:
-  gpu_memory_utilization: 0.90
+  gpu_memory_utilization: 0.95
   cpu_offload_gb: 0
   kv_cache_dtype: "auto"
 
@@ -20,6 +20,7 @@ performance:
   enable_prompt_tokens_details: true
   disable_frontend_multiprocessing: true
   max_num_seqs: 256
+  async_scheduling: true
 
 tool_calling:
   enable_auto_tool_choice: true

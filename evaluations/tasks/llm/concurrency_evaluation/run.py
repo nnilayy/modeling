@@ -250,6 +250,8 @@ def build_serve_cmd(
         parts += ["--enable-prefix-caching"]
     if perf.get("enable_chunked_prefill"):
         parts += ["--enable-chunked-prefill"]
+    if perf.get("async_scheduling"):
+        parts += ["--async-scheduling"]
     if srv.get("trust_remote_code"):
         parts += ["--trust-remote-code"]
     if mem.get("cpu_offload_gb", 0):

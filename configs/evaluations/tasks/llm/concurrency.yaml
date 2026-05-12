@@ -31,10 +31,12 @@ server:
   ready_poll_interval_s: 2.0
   shutdown_timeout_s: 30
   metrics_poll_interval_s: 0.1
-  # max_model_len = bucket_tokens + max_model_len_headroom.
-  # Empirically Qwen3 chat-template + system prompt = ~97 tokens fixed overhead;
-  # add completion budget (32) + body tokenization variance buffer (~150).
-  max_model_len_headroom: 384
+  # max_model_len = bucket_tokens + max(bucket_tokens * factor, min_headroom).
+  # Body tokenization variance between tiktoken (dataset) and Qwen tokenizer
+  # (server) scales with prompt length, so we use a proportional headroom with
+  # a floor of 384 tokens to cover chat-template (~97) + completion (32) + slack.
+  max_model_len_headroom_factor: 0.10
+  max_model_len_min_headroom: 384
 
 output:
   dir: "results/concurrency"
