@@ -261,16 +261,79 @@ def build_serve_cmd(
     return parts
 
 
+def _ensure_port_free(port: int, max_wait_s: float = 30.0) -> None:
+    """Kill anything bound to `port` and wait until the port is free.
+
+    Stops stale vLLM processes from previous runs hijacking the new server's
+    /v1/models endpoint and producing fake "server ready in 0.0s" results.
+    """
+    import socket as _socket
+
+    deadline = time.monotonic() + max_wait_s
+    while time.monotonic() < deadline:
+        sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+        try:
+            sock.bind(("0.0.0.0", port))
+            sock.close()
+            return
+        except OSError:
+            sock.close()
+            killed = False
+            for cmd in (
+                ["fuser", "-k", "-n", "tcp", str(port)],
+                ["lsof", "-ti", f"tcp:{port}"],
+            ):
+                try:
+                    out = subprocess.run(
+                        cmd, capture_output=True, text=True, timeout=5
+                    )
+                    if cmd[0] == "lsof" and out.stdout.strip():
+                        for pid in out.stdout.strip().splitlines():
+                            try:
+                                os.kill(int(pid), signal.SIGKILL)
+                                killed = True
+                            except (ProcessLookupError, ValueError, OSError):
+                                pass
+                    if cmd[0] == "fuser" and out.returncode == 0:
+                        killed = True
+                except (FileNotFoundError, subprocess.TimeoutExpired):
+                    continue
+            if killed:
+                time.sleep(1.0)
+            else:
+                time.sleep(0.5)
+
+
 async def wait_for_ready(
-    base_url: str, timeout_s: float, interval_s: float
+    base_url: str,
+    timeout_s: float,
+    interval_s: float,
+    proc: subprocess.Popen | None = None,
+    expected_model: str | None = None,
 ) -> bool:
+    """Poll /v1/models until OUR process is serving the EXPECTED model.
+
+    Guards against stale leftover servers responding instantly with the wrong
+    model or wrong max_model_len.
+    """
     deadline = time.monotonic() + timeout_s
     async with httpx.AsyncClient() as client:
         while time.monotonic() < deadline:
+            if proc is not None and proc.poll() is not None:
+                return False
             try:
                 r = await client.get(f"{base_url}/v1/models", timeout=5.0)
                 if r.status_code == 200:
-                    return True
+                    if expected_model is None:
+                        return True
+                    try:
+                        served = {
+                            m.get("id") for m in r.json().get("data", [])
+                        }
+                    except Exception:
+                        served = set()
+                    if expected_model in served:
+                        return True
             except (
                 httpx.ConnectError,
                 httpx.ReadError,
@@ -700,6 +763,7 @@ async def run_bucket(
     bucket_dir.mkdir(parents=True, exist_ok=True)
 
     print("  starting vllm serve...")
+    _ensure_port_free(port)
     log_path = bucket_dir / "vllm_server.log"
     log_file = open(log_path, "w")
     proc = subprocess.Popen(
@@ -716,12 +780,24 @@ async def run_bucket(
             concurrency_cfg["server"]["ready_poll_interval_s"]
         )
         t_start = time.monotonic()
-        ready = await wait_for_ready(base_url, startup_timeout, ready_interval)
+        ready = await wait_for_ready(
+            base_url,
+            startup_timeout,
+            ready_interval,
+            proc=proc,
+            expected_model=model_name,
+        )
         if not ready:
-            print(
-                f"  ERROR: server failed to become ready in "
-                f"{startup_timeout}s — see {log_path}"
-            )
+            if proc.poll() is not None:
+                print(
+                    f"  ERROR: vllm serve exited with code {proc.returncode} "
+                    f"during startup — see {log_path}"
+                )
+            else:
+                print(
+                    f"  ERROR: server failed to become ready in "
+                    f"{startup_timeout}s — see {log_path}"
+                )
             return None
         print(f"  server ready in {time.monotonic() - t_start:.1f}s")
 
@@ -853,6 +929,7 @@ async def run_bucket(
                 concurrency_cfg["server"].get("shutdown_timeout_s", 30)
             ),
         )
+        _ensure_port_free(port)
         try:
             log_file.close()
         except Exception:
