@@ -187,7 +187,7 @@ uvloop==0.22.1
 vllm==0.17.1
 watchfiles==1.1.1
 websockets==16.0
-xformers==0.0.32.post1
+xformers==0.0.35
 xgrammar==0.1.29
 xxhash==3.6.0
 yarl==1.23.0
