@@ -32,6 +32,7 @@ import argparse
 import asyncio
 import csv
 import json
+import math
 import os
 import re
 import shlex
@@ -578,6 +579,17 @@ def aggregate(
         )
     match = "ok" if fulfilled_client == server_fulfilled else "mismatch"
 
+    peak_running = int(_peak(gauge_samples, "num_requests_running"))
+    waves_estimate = (
+        math.ceil(num_prompts_fired / peak_running) if peak_running > 0 else 0
+    )
+    throughput_req_per_s = (
+        round(fulfilled_client / wall_seconds, 2) if wall_seconds > 0 else 0.0
+    )
+    avg_wave_seconds = (
+        round(wall_seconds / waves_estimate, 2) if waves_estimate > 0 else 0.0
+    )
+
     return {
         "bucket": bucket,
         "model": model_name,
@@ -585,8 +597,13 @@ def aggregate(
         "max_num_seqs": max_num_seqs,
         "num_prompts_fired": num_prompts_fired,
         "wall_seconds": round(wall_seconds, 3),
+        "throughput": {
+            "req_per_s": throughput_req_per_s,
+            "waves_estimate": waves_estimate,
+            "avg_wave_seconds": avg_wave_seconds,
+        },
         "concurrency": {
-            "peak_running": int(_peak(gauge_samples, "num_requests_running")),
+            "peak_running": peak_running,
             "mean_running": round(
                 _mean(gauge_samples, "num_requests_running"), 2
             ),
@@ -809,6 +826,7 @@ async def run_bucket(
             c = summary["concurrency"]
             o = summary["outcomes"]
             mm = summary["memory"]
+            tp = summary["throughput"]
             print(
                 f"  RESULT: peak_running={c['peak_running']} "
                 f"peak_waiting={c['peak_waiting']} "
@@ -817,6 +835,12 @@ async def run_bucket(
                 f"{summary['num_prompts_fired']} "
                 f"preempt={o['preemptions']} "
                 f"match={o['match_check']}"
+            )
+            print(
+                f"  THROUGHPUT: wall={summary['wall_seconds']}s "
+                f"throughput={tp['req_per_s']} req/s "
+                f"waves~{tp['waves_estimate']} "
+                f"avg_wave={tp['avg_wave_seconds']}s"
             )
 
             return summary
@@ -850,6 +874,7 @@ def write_top_summary(output_dir: Path, summaries: list[dict]) -> None:
         "peak_kv_cache_usage", "fulfilled_client", "fulfilled_server_total",
         "match_check", "preemptions", "prefix_cache_hits",
         "prompt_tokens_recomputed", "wall_seconds",
+        "throughput_req_per_s", "waves_estimate", "avg_wave_seconds",
     ]
     with csv_path.open("w", newline="") as f:
         w = csv.writer(f)
@@ -872,6 +897,9 @@ def write_top_summary(output_dir: Path, summaries: list[dict]) -> None:
                 s["sanity"]["prefix_cache_hits"],
                 s["sanity"]["prompt_tokens_recomputed"],
                 s["wall_seconds"],
+                s["throughput"]["req_per_s"],
+                s["throughput"]["waves_estimate"],
+                s["throughput"]["avg_wave_seconds"],
             ])
     print(f"\n  Top-level summary: {csv_path}")
 
