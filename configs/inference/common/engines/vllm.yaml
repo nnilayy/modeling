@@ -11,7 +11,13 @@ server:
 memory:
   gpu_memory_utilization: 0.95
   cpu_offload_gb: 0
-  kv_cache_dtype: "auto"
+  # kv_cache_dtype options:
+  #   auto                — bf16/fp16 (most stable, lowest concurrency)
+  #   fp8                 — 2× KV capacity but unstable with cudagraphs in vLLM 0.17
+  #   turboquant_k8v4     — 2.6× compression, ~80-100% throughput (vLLM >= 0.20)
+  #   turboquant_4bit_nc  — 3.8× compression, ~71-96% throughput
+  #   turboquant_3bit_nc  — 4.9× compression, ~65-93% throughput (max)
+  kv_cache_dtype: "turboquant_k8v4"
 
 performance:
   enable_prefix_caching: true
