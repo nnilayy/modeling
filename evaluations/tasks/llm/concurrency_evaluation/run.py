@@ -260,12 +260,12 @@ def build_serve_cmd(
 
     spec = engine_cfg.get("speculative_decoding") or {}
     if spec.get("enabled"):
-        method = spec.get("method", "ngram")
+        method = spec.get("method", "ngram_gpu")
         spec_cfg: dict[str, Any] = {
             "method": method,
             "num_speculative_tokens": int(spec.get("num_speculative_tokens", 5)),
         }
-        if method == "ngram":
+        if method in ("ngram", "ngram_gpu"):
             spec_cfg["prompt_lookup_max"] = int(spec.get("prompt_lookup_max", 4))
             spec_cfg["prompt_lookup_min"] = int(spec.get("prompt_lookup_min", 2))
         elif method in ("eagle", "eagle3"):

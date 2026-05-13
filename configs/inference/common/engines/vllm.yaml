@@ -27,16 +27,17 @@ performance:
 
 # Speculative decoding settings.
 # Method options:
-#   ngram   — prompt-lookup, no draft model needed; best for repetitive output
-#             (RAG, code completion). For novel generation expect 1.1-1.3x decode
-#             speedup. Free to enable, no extra GPU memory.
-#   eagle   — requires a separate draft model (eagle_model_path); 2-3x decode
-#             speedup but adds memory + compilation overhead.
-#   medusa  — multi-head drafting; needs medusa-tuned model.
+#   ngram_gpu — GPU-resident prompt lookup, REQUIRED when async_scheduling is on
+#               (vLLM 0.20+). For novel generation expect 1.1-1.3x decode
+#               speedup. Free to enable, no extra GPU memory.
+#   ngram     — CPU prompt lookup. INCOMPATIBLE with async_scheduling in 0.20+.
+#   eagle     — requires a separate draft model (set `model:` to draft path);
+#               2-3x decode speedup but adds memory + compilation overhead.
+#   medusa    — multi-head drafting; needs medusa-tuned model.
 # Set enabled: false to disable entirely.
 speculative_decoding:
   enabled: true
-  method: "ngram"
+  method: "ngram_gpu"
   num_speculative_tokens: 5
   prompt_lookup_max: 4
   prompt_lookup_min: 2
