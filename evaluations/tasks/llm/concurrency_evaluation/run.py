@@ -734,15 +734,7 @@ async def run_bucket(
         print(f"  ERROR: unknown bucket '{bucket}', valid={list(BUCKET_TOKENS)}")
         return None
 
-    bucket_tokens = BUCKET_TOKENS[bucket]
-    server_cfg = concurrency_cfg["server"]
-    if "max_model_len_headroom" in server_cfg:
-        headroom = int(server_cfg["max_model_len_headroom"])
-    else:
-        factor = float(server_cfg.get("max_model_len_headroom_factor", 0.30))
-        min_headroom = int(server_cfg.get("max_model_len_min_headroom", 512))
-        headroom = max(int(bucket_tokens * factor), min_headroom)
-    max_model_len = bucket_tokens + headroom
+    max_model_len = int(concurrency_cfg["server"]["max_model_len"])
 
     serve_cmd = build_serve_cmd(model_cfg, engine_cfg, max_model_len, port)
     print(f"\n[bucket={bucket}] max_model_len={max_model_len}")
