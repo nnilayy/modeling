@@ -19,18 +19,20 @@ memory:
 performance:
   enable_prefix_caching: true
   enable_chunked_prefill: true
-  # Higher = more prefills admitted per scheduler iteration.
-  # 65536 lets us admit 64 × 1k requests per iter (was 32) → halves admission
-  # rounds for burst loads. Trade-off: slightly larger CUDA graphs.
-  max_num_batched_tokens: 65536
+  # Sized for largest model in our matrix (32B BF16 on H100 80GB):
+  #   weights = 61 GB, leaving ~14 GB for activations + KV cache + workspace.
+  # 65536 caused profile_run OOM on 32B (lm_head logits buffer = 6.5 GB alone).
+  # 16384 is safe across 1.7B → 32B and still admits 16 × 1k prompts per iter.
+  max_num_batched_tokens: 16384
   enable_prompt_tokens_details: true
   disable_frontend_multiprocessing: true
   max_num_seqs: 256
   async_scheduling: true
-  # Force FlashInfer attention backend (already installed in venv).
-  # On A100 SM 8.0, FlashInfer often outperforms FlashAttention 2 for
-  # high-concurrency workloads. Set to null/false to use vLLM's default.
-  attention_backend: "FLASHINFER"
+  # Attention backend selection. On H100 (SM 9.0), vLLM auto-selects FLASH_ATTN
+  # (FlashAttention 3) which is the best choice. Leave unset to let vLLM pick.
+  # Note: VLLM_ATTENTION_BACKEND is not a recognized env var in vLLM 0.20+, the
+  # selection is made via the engine's auto-detection logic.
+  # attention_backend: "FLASHINFER"
 
 # Speculative decoding settings.
 # Method options:
