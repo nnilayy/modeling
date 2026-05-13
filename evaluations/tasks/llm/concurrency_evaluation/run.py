@@ -773,9 +773,13 @@ async def run_bucket(
     _ensure_port_free(port)
     log_path = bucket_dir / "vllm_server.log"
     log_file = open(log_path, "w")
+    serve_env = os.environ.copy()
+    attn_backend = engine_cfg["performance"].get("attention_backend")
+    if attn_backend:
+        serve_env["VLLM_ATTENTION_BACKEND"] = str(attn_backend)
     proc = subprocess.Popen(
         serve_cmd,
-        env=os.environ.copy(),
+        env=serve_env,
         stdout=log_file,
         stderr=subprocess.STDOUT,
         start_new_session=True,

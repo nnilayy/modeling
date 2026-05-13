@@ -19,11 +19,18 @@ memory:
 performance:
   enable_prefix_caching: true
   enable_chunked_prefill: true
-  max_num_batched_tokens: 32768
+  # Higher = more prefills admitted per scheduler iteration.
+  # 65536 lets us admit 64 × 1k requests per iter (was 32) → halves admission
+  # rounds for burst loads. Trade-off: slightly larger CUDA graphs.
+  max_num_batched_tokens: 65536
   enable_prompt_tokens_details: true
   disable_frontend_multiprocessing: true
   max_num_seqs: 256
   async_scheduling: true
+  # Force FlashInfer attention backend (already installed in venv).
+  # On A100 SM 8.0, FlashInfer often outperforms FlashAttention 2 for
+  # high-concurrency workloads. Set to null/false to use vLLM's default.
+  attention_backend: "FLASHINFER"
 
 # Speculative decoding settings.
 # Method options:
@@ -36,7 +43,7 @@ performance:
 #   medusa    — multi-head drafting; needs medusa-tuned model.
 # Set enabled: false to disable entirely.
 speculative_decoding:
-  enabled: true
+  enabled: false
   method: "ngram_gpu"
   num_speculative_tokens: 5
   prompt_lookup_max: 4
