@@ -777,6 +777,14 @@ async def run_bucket(
     attn_backend = engine_cfg["performance"].get("attention_backend")
     if attn_backend:
         serve_env["VLLM_ATTENTION_BACKEND"] = str(attn_backend)
+    # Disable DeepGEMM warmup. vLLM 0.20.x's kernel_warmup() unconditionally
+    # calls deep_gemm_warmup() if the GPU supports FP8 in hardware (H100+),
+    # but the DeepGEMM Python package isn't on PyPI as a usable wheel, so the
+    # warmup crashes with "DeepGEMM backend is not available or outdated".
+    # We're running BF16 weights (kv_cache_dtype=auto), so DeepGEMM warmup is
+    # wasted work even when it does succeed. Setting VLLM_USE_DEEP_GEMM=0
+    # short-circuits the gate cleanly.
+    serve_env.setdefault("VLLM_USE_DEEP_GEMM", "0")
     proc = subprocess.Popen(
         serve_cmd,
         env=serve_env,
