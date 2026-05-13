@@ -12,9 +12,11 @@ memory:
   gpu_memory_utilization: 0.95
   cpu_offload_gb: 0
   # kv_cache_dtype options:
-  #   auto  — bf16/fp16 (most stable, lowest concurrency)
-  #   fp8   — 2× KV capacity but unstable with cudagraphs in vLLM 0.17
-  kv_cache_dtype: "auto"
+  #   auto  — matches model dtype (bf16/fp16). Most stable, lowest concurrency.
+  #   fp8   — 8-bit KV cache. ~2× concurrency on H100+ (Hopper has native FP8).
+  #           Slight quality loss (<1% on most benchmarks). Stable on vLLM 0.20+.
+  #   fp8_e5m2 / fp8_e4m3 — explicit FP8 variants. e4m3 is more accurate.
+  kv_cache_dtype: "fp8"
 
 performance:
   enable_prefix_caching: true
