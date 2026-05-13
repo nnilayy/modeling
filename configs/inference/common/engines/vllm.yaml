@@ -27,16 +27,14 @@ performance:
   # collapses from ~10 iters to ~3.
   # NOTE: revert to 16384 for BF16 32B (lm_head logits OOM at 65k tokens).
   max_num_batched_tokens: 65536
-  # Concurrent partial prefills — instead of fully prefilling one prompt before
-  # starting the next, the scheduler progresses 4 prompts in parallel per iter,
-  # splitting the compute budget across them. Drastically cuts TTFT for the
-  # 2nd-Nth requests admitted in a burst.
-  max_num_partial_prefills: 4
-  # Prompts above this token count are classified "long" and counted against a
-  # separate concurrency cap. Prevents one 32k prompt from monopolizing the
-  # batch budget and starving the short prompts behind it.
-  long_prefill_token_threshold: 2048
-  max_long_partial_prefills: 2
+  # Concurrent partial prefills — DISABLED on vLLM 0.20.2.
+  # The CLI accepts --max-num-partial-prefills/--max-long-partial-prefills/
+  # --long-prefill-token-threshold but the scheduler raises NotImplementedError
+  # at startup ("Concurrent Partial Prefill is not supported", arg_utils.py L2142).
+  # Feature lands properly in vLLM 0.21+. Re-enable when we upgrade.
+  # max_num_partial_prefills: 4
+  # long_prefill_token_threshold: 2048
+  # max_long_partial_prefills: 2
   # Inter-prefill budget caps simultaneous prefills when GPU compute is already
   # saturated by a single big prompt. Cuts median TTFT up to ~37% on large
   # models (vLLM PR #33743). Only honored on vLLM 0.21+ — older versions ignore.
@@ -48,7 +46,7 @@ performance:
   # have headroom for ~300 concurrent. Bumping to 512 lets the small-context
   # buckets absorb all 256 fired requests in a single wave (no second wave).
   max_num_seqs: 512
-  async_scheduling: true
+  async_scheduling: false
   # Attention backend selection. On H100 (SM 9.0), vLLM auto-selects FLASH_ATTN
   # (FlashAttention 3) which is the best choice. Leave unset to let vLLM pick.
   # Note: VLLM_ATTENTION_BACKEND is not a recognized env var in vLLM 0.20+, the
@@ -66,7 +64,7 @@ performance:
 #   medusa    — multi-head drafting; needs medusa-tuned model.
 # Set enabled: false to disable entirely.
 speculative_decoding:
-  enabled: true
+  enabled: false
   method: "ngram_gpu"
   num_speculative_tokens: 5
   prompt_lookup_max: 4
