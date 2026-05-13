@@ -1,12 +1,21 @@
 """Concurrency capacity evaluation for vLLM.
 
+The vLLM server is started ONCE at the top of the run and reused for every
+bucket. Between buckets we POST /reset_prefix_cache (gated behind
+VLLM_SERVER_DEV_MODE=1) and verify via /metrics that vllm:kv_cache_usage_perc
+returned to ~0 before measuring the next bucket. This keeps CUDA graphs,
+Triton kernel JIT, and AOT compile artifacts warm across buckets, saving
+~48s per bucket vs the previous restart-per-bucket strategy and producing
+measurements closer to a real production deployment.
+
 For each context-length bucket in the HF dataset, this script:
-  1. starts a vLLM server with max_model_len sized for that bucket
-  2. fires all prompts simultaneously via asyncio.gather
-  3. polls /metrics at high frequency to capture peak num_requests_running
-  4. snapshots /metrics at start and end to compute counter/histogram deltas
-  5. writes per-bucket summary.json + requests.jsonl + metrics_timeseries.jsonl
-  6. shuts the server down before moving to the next bucket
+  1. loads 256 unique prompts from the bucket
+  2. warms the server with N requests (N from concurrency.yaml)
+  3. snapshots /metrics, fires all prompts simultaneously via asyncio.gather
+  4. polls /metrics at high frequency to capture peak num_requests_running
+  5. snapshots /metrics again to compute counter/histogram deltas
+  6. writes per-bucket summary.json + requests.jsonl + metrics_timeseries.jsonl
+  7. resets prefix cache + drains KV before the next bucket
 
 Usage:
     python -m evaluations.tasks.llm.concurrency_evaluation.run \
@@ -19,7 +28,7 @@ Usage:
         configs/evaluations/tasks/llm/concurrency.yaml \
         --buckets 01k
 
-    # dry run — print serve commands without starting servers
+    # dry run — print serve command without starting the server
     python -m evaluations.tasks.llm.concurrency_evaluation.run \
         configs/evaluations/tasks/llm/models/qwen/qwen_3/32b/fp8.yaml \
         configs/evaluations/tasks/llm/concurrency.yaml \
@@ -408,6 +417,88 @@ def stop_server(proc: subprocess.Popen, timeout_s: float = 30.0) -> None:
         pass
 
 
+async def start_server(
+    model_cfg: dict,
+    engine_cfg: dict,
+    concurrency_cfg: dict,
+    output_dir: Path,
+    port: int,
+    dry_run: bool,
+) -> tuple[subprocess.Popen | None, Any | None, str, Path]:
+    """Boot ONE vLLM server that serves all buckets in this run.
+
+    Returns (proc, log_file, base_url, log_path).
+      - dry-run path: returns (None, None, base_url, log_path) after printing
+        the serve command.
+      - failure path: returns (None, log_file, base_url, log_path) — the log
+        file is left behind so the caller can inspect it.
+    """
+    base_url = f"http://localhost:{port}"
+    max_model_len = int(concurrency_cfg["server"]["max_model_len"])
+    serve_cmd = build_serve_cmd(model_cfg, engine_cfg, max_model_len, port)
+    log_path = output_dir / "vllm_server.log"
+
+    print("\n[server] starting once for all buckets")
+    print(f"  max_model_len: {max_model_len}")
+    print(f"  log:           {log_path}")
+    print(f"  cmd:           {shlex.join(serve_cmd)}")
+
+    if dry_run:
+        return (None, None, base_url, log_path)
+
+    _ensure_port_free(port)
+    log_file = open(log_path, "w")
+
+    serve_env = os.environ.copy()
+    attn_backend = engine_cfg["performance"].get("attention_backend")
+    if attn_backend:
+        serve_env["VLLM_ATTENTION_BACKEND"] = str(attn_backend)
+    # Disable DeepGEMM warmup. vLLM 0.20.x's kernel_warmup() unconditionally
+    # calls deep_gemm_warmup() if the GPU supports FP8 in hardware (H100+),
+    # but the DeepGEMM Python package isn't on PyPI as a usable wheel.
+    serve_env.setdefault("VLLM_USE_DEEP_GEMM", "0")
+    # Expose dev-mode endpoints (/reset_prefix_cache, /sleep, /wake_up,
+    # /collective_rpc, /is_sleeping). We need /reset_prefix_cache to wipe KV
+    # state between buckets without restarting the server, so kernels and
+    # CUDA graphs stay warm. Safe here because the server only listens on
+    # localhost (or the bound interface in the yaml) — the DoS gate matters
+    # only for internet-exposed servers.
+    serve_env.setdefault("VLLM_SERVER_DEV_MODE", "1")
+
+    proc = subprocess.Popen(
+        serve_cmd,
+        env=serve_env,
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+
+    startup_timeout = float(concurrency_cfg["server"]["startup_timeout_s"])
+    ready_interval = float(concurrency_cfg["server"]["ready_poll_interval_s"])
+    t_start = time.monotonic()
+    ready = await wait_for_ready(
+        base_url,
+        startup_timeout,
+        ready_interval,
+        proc=proc,
+        expected_model=model_cfg["model"]["name"],
+    )
+    if not ready:
+        if proc.poll() is not None:
+            print(
+                f"  ERROR: vllm serve exited with code {proc.returncode} "
+                f"during startup — see {log_path}"
+            )
+        else:
+            print(
+                f"  ERROR: server failed to become ready in "
+                f"{startup_timeout}s — see {log_path}"
+            )
+        return (None, log_file, base_url, log_path)
+    print(f"  server ready in {time.monotonic() - t_start:.1f}s")
+    return (proc, log_file, base_url, log_path)
+
+
 # =============================================================================
 # Async load generator
 # =============================================================================
@@ -577,6 +668,95 @@ async def fetch_metrics(client: httpx.AsyncClient) -> dict | None:
         return parse_metrics(r.text)
     except Exception:
         return None
+
+
+async def reset_prefix_cache_and_drain(
+    client: httpx.AsyncClient,
+    *,
+    drain_timeout_s: float = 30.0,
+    verify_timeout_s: float = 10.0,
+    poll_interval_s: float = 0.1,
+) -> dict:
+    """Wipe the prefix cache between buckets and verify the KV pool is empty.
+
+    Three phases:
+      1. Drain: wait for vllm:num_requests_running and num_requests_waiting
+         to both hit 0. Should be near-instant since asyncio.gather already
+         awaited every fired request, but vLLM may take a poll cycle to
+         retire the gauges after the last token.
+      2. POST /reset_prefix_cache. The endpoint always returns HTTP 200,
+         even on no-op (vLLM PR #12284) — so we never trust the response
+         status, only the post-reset metrics.
+      3. Verify: poll /metrics until vllm:kv_cache_usage_perc is < 0.01.
+         If we time out here, the caller should treat the next bucket's
+         numbers with skepticism (some prefix cache may have leaked through).
+
+    Returns a diagnostic dict the caller can log for the run report:
+      drained:           True if the running/waiting gauges reached 0
+      kv_after_reset:    KV usage gauge value after the POST settled
+      reset_http_ok:     POST didn't raise a transport error (status NOT
+                         checked on purpose — see above)
+      drain_wait_s:      time spent in phase 1
+      reset_wait_s:      time spent in phase 3
+      verified_clean:    True iff kv_after_reset < 0.01
+    """
+    info: dict[str, Any] = {
+        "drained": False,
+        "kv_after_reset": None,
+        "running_after": None,
+        "waiting_after": None,
+        "reset_http_ok": False,
+        "drain_wait_s": 0.0,
+        "reset_wait_s": 0.0,
+        "verified_clean": False,
+    }
+
+    # Phase 1 — drain.
+    t0 = time.monotonic()
+    deadline = t0 + drain_timeout_s
+    while time.monotonic() < deadline:
+        m = await fetch_metrics(client)
+        if m is not None:
+            running = get_gauge(m, "vllm:num_requests_running") or 0
+            waiting = get_gauge(m, "vllm:num_requests_waiting") or 0
+            if running == 0 and waiting == 0:
+                info["drained"] = True
+                break
+        await asyncio.sleep(poll_interval_s)
+    info["drain_wait_s"] = round(time.monotonic() - t0, 3)
+    if not info["drained"]:
+        return info
+
+    # Phase 2 — issue the reset. /reset_prefix_cache returns 200 unconditionally;
+    # we deliberately don't gate on status, only on phase 3's verification.
+    try:
+        await client.post(
+            "/reset_prefix_cache",
+            params={"reset_running_requests": "false"},
+            timeout=10.0,
+        )
+        info["reset_http_ok"] = True
+    except Exception:
+        info["reset_http_ok"] = False
+
+    # Phase 3 — verify the KV gauge dropped to ~0.
+    t1 = time.monotonic()
+    deadline = t1 + verify_timeout_s
+    while time.monotonic() < deadline:
+        m = await fetch_metrics(client)
+        if m is not None:
+            kv = get_gauge(m, "vllm:kv_cache_usage_perc") or 0
+            running = get_gauge(m, "vllm:num_requests_running") or 0
+            waiting = get_gauge(m, "vllm:num_requests_waiting") or 0
+            info["kv_after_reset"] = round(kv, 4)
+            info["running_after"] = int(running)
+            info["waiting_after"] = int(waiting)
+            if kv < 0.01:
+                info["verified_clean"] = True
+                break
+        await asyncio.sleep(poll_interval_s)
+    info["reset_wait_s"] = round(time.monotonic() - t1, 3)
+    return info
 
 
 # =============================================================================
@@ -750,7 +930,7 @@ def aggregate(
 
 
 # =============================================================================
-# Per-bucket runner
+# Per-bucket runner — assumes a server is already running at base_url
 # =============================================================================
 
 async def run_bucket(
@@ -759,24 +939,16 @@ async def run_bucket(
     engine_cfg: dict,
     concurrency_cfg: dict,
     output_dir: Path,
-    port: int,
-    dry_run: bool,
+    base_url: str,
 ) -> dict | None:
     model_name = model_cfg["model"]["name"]
-    base_url = f"http://localhost:{port}"
 
     if bucket not in BUCKET_TOKENS:
         print(f"  ERROR: unknown bucket '{bucket}', valid={list(BUCKET_TOKENS)}")
         return None
 
     max_model_len = int(concurrency_cfg["server"]["max_model_len"])
-
-    serve_cmd = build_serve_cmd(model_cfg, engine_cfg, max_model_len, port)
     print(f"\n[bucket={bucket}] max_model_len={max_model_len}")
-
-    if dry_run:
-        print(f"  serve cmd: {shlex.join(serve_cmd)}")
-        return None
 
     print(f"  loading dataset bucket {bucket} from HuggingFace...")
     ds = load_dataset(
@@ -789,191 +961,125 @@ async def run_bucket(
     bucket_dir = output_dir / bucket
     bucket_dir.mkdir(parents=True, exist_ok=True)
 
-    print("  starting vllm serve...")
-    _ensure_port_free(port)
-    log_path = bucket_dir / "vllm_server.log"
-    log_file = open(log_path, "w")
-    serve_env = os.environ.copy()
-    attn_backend = engine_cfg["performance"].get("attention_backend")
-    if attn_backend:
-        serve_env["VLLM_ATTENTION_BACKEND"] = str(attn_backend)
-    # Disable DeepGEMM warmup. vLLM 0.20.x's kernel_warmup() unconditionally
-    # calls deep_gemm_warmup() if the GPU supports FP8 in hardware (H100+),
-    # but the DeepGEMM Python package isn't on PyPI as a usable wheel, so the
-    # warmup crashes with "DeepGEMM backend is not available or outdated".
-    # We're running BF16 weights (kv_cache_dtype=auto), so DeepGEMM warmup is
-    # wasted work even when it does succeed. Setting VLLM_USE_DEEP_GEMM=0
-    # short-circuits the gate cleanly.
-    serve_env.setdefault("VLLM_USE_DEEP_GEMM", "0")
-    proc = subprocess.Popen(
-        serve_cmd,
-        env=serve_env,
-        stdout=log_file,
-        stderr=subprocess.STDOUT,
-        start_new_session=True,
+    chat_template_cfg = engine_cfg.get("chat_template") or {}
+    ctk: dict | None = None
+    if "enable_thinking" in chat_template_cfg:
+        ctk = {"enable_thinking": chat_template_cfg["enable_thinking"]}
+
+    req_cfg = concurrency_cfg["request"]
+    max_tokens = int(req_cfg["max_completion_tokens"])
+    temperature = float(req_cfg.get("temperature", 0.0))
+    timeout_s = float(req_cfg["per_request_timeout_s"])
+
+    limits = httpx.Limits(
+        max_connections=max(num_prompts + 16, 256),
+        max_keepalive_connections=max(num_prompts + 16, 256),
     )
-
-    try:
-        startup_timeout = float(concurrency_cfg["server"]["startup_timeout_s"])
-        ready_interval = float(
-            concurrency_cfg["server"]["ready_poll_interval_s"]
-        )
-        t_start = time.monotonic()
-        ready = await wait_for_ready(
-            base_url,
-            startup_timeout,
-            ready_interval,
-            proc=proc,
-            expected_model=model_name,
-        )
-        if not ready:
-            if proc.poll() is not None:
-                print(
-                    f"  ERROR: vllm serve exited with code {proc.returncode} "
-                    f"during startup — see {log_path}"
-                )
-            else:
-                print(
-                    f"  ERROR: server failed to become ready in "
-                    f"{startup_timeout}s — see {log_path}"
-                )
-            return None
-        print(f"  server ready in {time.monotonic() - t_start:.1f}s")
-
-        chat_template_cfg = engine_cfg.get("chat_template") or {}
-        ctk: dict | None = None
-        if "enable_thinking" in chat_template_cfg:
-            ctk = {"enable_thinking": chat_template_cfg["enable_thinking"]}
-
-        req_cfg = concurrency_cfg["request"]
-        max_tokens = int(req_cfg["max_completion_tokens"])
-        temperature = float(req_cfg.get("temperature", 0.0))
-        timeout_s = float(req_cfg["per_request_timeout_s"])
-
-        limits = httpx.Limits(
-            max_connections=max(num_prompts + 16, 256),
-            max_keepalive_connections=max(num_prompts + 16, 256),
-        )
-        async with httpx.AsyncClient(base_url=base_url, limits=limits) as client:
-            warmup_count = int(concurrency_cfg["load"].get("warmup_requests", 1))
-            for i in range(warmup_count):
-                row = rows[i % len(rows)]
-                print(f"  warmup {i + 1}/{warmup_count}...")
-                wres = await send_one(
-                    client,
-                    model_name=model_name,
-                    messages=row["messages"],
-                    request_id=f"warmup_{i}",
-                    bucket=bucket,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    timeout_s=timeout_s,
-                    chat_template_kwargs=ctk,
-                )
-                print(
-                    f"    status={wres['status']} "
-                    f"ttft={wres['ttft_s']} e2e={wres['e2e_s']}"
-                )
-
-            print("  scraping initial /metrics snapshot...")
-            snap_start = await fetch_metrics(client)
-
-            gauge_samples: list[dict] = []
-            stop_event = asyncio.Event()
-            poll_interval = float(
-                concurrency_cfg["server"]["metrics_poll_interval_s"]
-            )
-            poller_task = asyncio.create_task(
-                metrics_poller(client, poll_interval, gauge_samples, stop_event)
-            )
-
-            print(f"  firing {len(rows)} concurrent requests...")
-            t_fire = time.monotonic()
-            tasks = [
-                send_one(
-                    client,
-                    model_name=model_name,
-                    messages=row["messages"],
-                    request_id=row.get("id", f"{bucket}_{i:03d}"),
-                    bucket=bucket,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    timeout_s=timeout_s,
-                    chat_template_kwargs=ctk,
-                )
-                for i, row in enumerate(rows)
-            ]
-            per_request_rows = await asyncio.gather(*tasks)
-            wall_s = time.monotonic() - t_fire
-
-            stop_event.set()
-            await poller_task
-
-            snap_end = await fetch_metrics(client)
-            print(
-                f"  completed in {wall_s:.1f}s, captured "
-                f"{len(gauge_samples)} gauge samples"
-            )
-
-            summary = aggregate(
-                per_request_rows=per_request_rows,
-                gauge_samples=gauge_samples,
-                snap_start=snap_start,
-                snap_end=snap_end,
+    async with httpx.AsyncClient(base_url=base_url, limits=limits) as client:
+        warmup_count = int(concurrency_cfg["load"].get("warmup_requests", 1))
+        for i in range(warmup_count):
+            row = rows[i % len(rows)]
+            print(f"  warmup {i + 1}/{warmup_count}...")
+            wres = await send_one(
+                client,
                 model_name=model_name,
+                messages=row["messages"],
+                request_id=f"warmup_{i}",
                 bucket=bucket,
-                max_model_len=max_model_len,
-                max_num_seqs=int(engine_cfg["performance"]["max_num_seqs"]),
-                num_prompts_fired=len(rows),
-                wall_seconds=wall_s,
-            )
-
-            (bucket_dir / "summary.json").write_text(
-                json.dumps(summary, indent=2)
-            )
-            with (bucket_dir / "requests.jsonl").open("w") as f:
-                for r in per_request_rows:
-                    f.write(json.dumps(r) + "\n")
-            with (bucket_dir / "metrics_timeseries.jsonl").open("w") as f:
-                for s in gauge_samples:
-                    f.write(json.dumps(s) + "\n")
-
-            c = summary["concurrency"]
-            o = summary["outcomes"]
-            mm = summary["memory"]
-            tp = summary["throughput"]
-            print(
-                f"  RESULT: peak_running={c['peak_running']} "
-                f"peak_waiting={c['peak_waiting']} "
-                f"peak_kv={mm['peak_kv_cache_usage']:.2f} "
-                f"fulfilled={o['fulfilled_client']}/"
-                f"{summary['num_prompts_fired']} "
-                f"preempt={o['preemptions']} "
-                f"match={o['match_check']}"
+                max_tokens=max_tokens,
+                temperature=temperature,
+                timeout_s=timeout_s,
+                chat_template_kwargs=ctk,
             )
             print(
-                f"  THROUGHPUT: wall={summary['wall_seconds']}s "
-                f"throughput={tp['req_per_s']} req/s "
-                f"waves~{tp['waves_estimate']} "
-                f"avg_wave={tp['avg_wave_seconds']}s"
+                f"    status={wres['status']} "
+                f"ttft={wres['ttft_s']} e2e={wres['e2e_s']}"
             )
 
-            return summary
-    finally:
-        print("  stopping vllm serve...")
-        t_stop = time.monotonic()
-        stop_server(
-            proc,
-            timeout_s=float(
-                concurrency_cfg["server"].get("shutdown_timeout_s", 30)
-            ),
+        print("  scraping initial /metrics snapshot...")
+        snap_start = await fetch_metrics(client)
+
+        gauge_samples: list[dict] = []
+        stop_event = asyncio.Event()
+        poll_interval = float(
+            concurrency_cfg["server"]["metrics_poll_interval_s"]
         )
-        _ensure_port_free(port)
-        try:
-            log_file.close()
-        except Exception:
-            pass
-        print(f"  server stopped ({time.monotonic() - t_stop:.1f}s)")
+        poller_task = asyncio.create_task(
+            metrics_poller(client, poll_interval, gauge_samples, stop_event)
+        )
+
+        print(f"  firing {len(rows)} concurrent requests...")
+        t_fire = time.monotonic()
+        tasks = [
+            send_one(
+                client,
+                model_name=model_name,
+                messages=row["messages"],
+                request_id=row.get("id", f"{bucket}_{i:03d}"),
+                bucket=bucket,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                timeout_s=timeout_s,
+                chat_template_kwargs=ctk,
+            )
+            for i, row in enumerate(rows)
+        ]
+        per_request_rows = await asyncio.gather(*tasks)
+        wall_s = time.monotonic() - t_fire
+
+        stop_event.set()
+        await poller_task
+
+        snap_end = await fetch_metrics(client)
+        print(
+            f"  completed in {wall_s:.1f}s, captured "
+            f"{len(gauge_samples)} gauge samples"
+        )
+
+        summary = aggregate(
+            per_request_rows=per_request_rows,
+            gauge_samples=gauge_samples,
+            snap_start=snap_start,
+            snap_end=snap_end,
+            model_name=model_name,
+            bucket=bucket,
+            max_model_len=max_model_len,
+            max_num_seqs=int(engine_cfg["performance"]["max_num_seqs"]),
+            num_prompts_fired=len(rows),
+            wall_seconds=wall_s,
+        )
+
+        (bucket_dir / "summary.json").write_text(
+            json.dumps(summary, indent=2)
+        )
+        with (bucket_dir / "requests.jsonl").open("w") as f:
+            for r in per_request_rows:
+                f.write(json.dumps(r) + "\n")
+        with (bucket_dir / "metrics_timeseries.jsonl").open("w") as f:
+            for s in gauge_samples:
+                f.write(json.dumps(s) + "\n")
+
+        c = summary["concurrency"]
+        o = summary["outcomes"]
+        mm = summary["memory"]
+        tp = summary["throughput"]
+        print(
+            f"  RESULT: peak_running={c['peak_running']} "
+            f"peak_waiting={c['peak_waiting']} "
+            f"peak_kv={mm['peak_kv_cache_usage']:.2f} "
+            f"fulfilled={o['fulfilled_client']}/"
+            f"{summary['num_prompts_fired']} "
+            f"preempt={o['preemptions']} "
+            f"match={o['match_check']}"
+        )
+        print(
+            f"  THROUGHPUT: wall={summary['wall_seconds']}s "
+            f"throughput={tp['req_per_s']} req/s "
+            f"waves~{tp['waves_estimate']} "
+            f"avg_wave={tp['avg_wave_seconds']}s"
+        )
+
+        return summary
 
 
 # =============================================================================
@@ -1063,34 +1169,109 @@ async def amain(args: argparse.Namespace) -> int:
     print(f"  Dry run:  {args.dry_run}")
     print(f"{'=' * 60}")
 
+    proc, log_file, base_url, log_path = await start_server(
+        model_cfg=model_cfg,
+        engine_cfg=engine_cfg,
+        concurrency_cfg=concurrency_cfg,
+        output_dir=output_dir,
+        port=args.port,
+        dry_run=args.dry_run,
+    )
+
+    if args.dry_run:
+        return 0
+
+    if proc is None:
+        if log_file is not None:
+            try:
+                log_file.close()
+            except Exception:
+                pass
+        print(
+            f"\nFATAL: server did not start. Inspect log at {log_path}",
+            file=sys.stderr,
+        )
+        return 1
+
     summaries: list[dict] = []
     failed: list[str] = []
+    reset_log: list[dict] = []
+    shutdown_timeout = float(
+        concurrency_cfg["server"].get("shutdown_timeout_s", 30)
+    )
 
-    for i, bucket in enumerate(buckets, 1):
-        print(f"\n[{i}/{len(buckets)}]", end=" ")
-        try:
-            summary = await run_bucket(
-                bucket=bucket,
-                model_cfg=model_cfg,
-                engine_cfg=engine_cfg,
-                concurrency_cfg=concurrency_cfg,
-                output_dir=output_dir,
-                port=args.port,
-                dry_run=args.dry_run,
-            )
-            if summary is None and not args.dry_run:
+    try:
+        for i, bucket in enumerate(buckets, 1):
+            print(f"\n[{i}/{len(buckets)}]", end=" ")
+            try:
+                summary = await run_bucket(
+                    bucket=bucket,
+                    model_cfg=model_cfg,
+                    engine_cfg=engine_cfg,
+                    concurrency_cfg=concurrency_cfg,
+                    output_dir=output_dir,
+                    base_url=base_url,
+                )
+                if summary is None:
+                    failed.append(bucket)
+                else:
+                    summaries.append(summary)
+            except KeyboardInterrupt:
+                print("\n  INTERRUPTED — exiting cleanly")
+                return 130
+            except Exception as e:
+                print(f"\n  ERROR running bucket {bucket}: {e!r}")
                 failed.append(bucket)
-            elif summary is not None:
-                summaries.append(summary)
-        except KeyboardInterrupt:
-            print("\n  INTERRUPTED — exiting cleanly")
-            return 130
-        except Exception as e:
-            print(f"\n  ERROR running bucket {bucket}: {e!r}")
-            failed.append(bucket)
 
-    if not args.dry_run:
-        write_top_summary(output_dir, summaries)
+            # Reset prefix cache between buckets so the next bucket starts
+            # with an empty KV pool. Done even after failure so the next
+            # bucket isn't contaminated by carry-over state.
+            if i < len(buckets):
+                if proc.poll() is not None:
+                    print(
+                        f"  WARNING: server died (exit {proc.returncode}); "
+                        "skipping remaining buckets"
+                    )
+                    for remaining in buckets[i:]:
+                        failed.append(remaining)
+                    break
+                print("  resetting prefix cache before next bucket...")
+                async with httpx.AsyncClient(base_url=base_url) as c:
+                    info = await reset_prefix_cache_and_drain(c)
+                info["bucket_after"] = buckets[i] if i < len(buckets) else None
+                info["bucket_before"] = bucket
+                reset_log.append(info)
+                if info["verified_clean"]:
+                    print(
+                        f"    OK: drained in {info['drain_wait_s']}s, "
+                        f"verified in {info['reset_wait_s']}s, "
+                        f"kv_after={info['kv_after_reset']}"
+                    )
+                else:
+                    print(
+                        f"    WARNING: reset did not verify clean — "
+                        f"drained={info['drained']} "
+                        f"kv_after={info['kv_after_reset']} "
+                        f"running_after={info['running_after']} "
+                        f"waiting_after={info['waiting_after']}"
+                    )
+    finally:
+        print("\n[server] stopping vllm serve...")
+        t_stop = time.monotonic()
+        stop_server(proc, timeout_s=shutdown_timeout)
+        _ensure_port_free(args.port)
+        if log_file is not None:
+            try:
+                log_file.close()
+            except Exception:
+                pass
+        print(f"[server] stopped ({time.monotonic() - t_stop:.1f}s)")
+
+    write_top_summary(output_dir, summaries)
+    if reset_log:
+        (output_dir / "reset_prefix_cache.jsonl").write_text(
+            "\n".join(json.dumps(r) for r in reset_log) + "\n"
+        )
 
     print(f"\n{'=' * 60}")
     print("  DONE")
@@ -1124,7 +1305,7 @@ def main() -> None:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Print serve commands without starting servers",
+        help="Print serve command without starting the server",
     )
     args = parser.parse_args()
 
