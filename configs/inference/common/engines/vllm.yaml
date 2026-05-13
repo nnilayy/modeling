@@ -9,11 +9,14 @@ server:
   trust_remote_code: true
 
 memory:
-  # Pushed to 0.98 to claw back KV budget — vLLM 0.20.2 reserves ~1.4% more than
-  # 0.20.0 for cudagraph profiling ("0.95 effective = 0.9364"), so 0.98 ≈ 0.966
-  # of usable HBM. Leaves ~1.6 GiB safety margin on H100 80GB after the 32B FP8
-  # weights (63 GiB) + cudagraphs (~1 GiB) + activations.
-  gpu_memory_utilization: 0.98
+  # Held at 0.95. We tried 0.98 to squeeze more KV out of the H100 but the
+  # engine OOMs during FlashInfer autotune's _dummy_run, which transiently
+  # allocates a (max_num_batched_tokens, 51200) bf16 tensor (≈6.25 GiB at
+  # 65536 tokens). That allocation happens AFTER the KV pool is committed,
+  # so the safety margin needs to cover it. 0.95 leaves ~6 GiB headroom on
+  # the H100-80GB which fits autotune cleanly. Net cost vs 0.98: ~2 GiB less
+  # KV memory ≈ ~16k fewer cached tokens — negligible vs the ~280k we get.
+  gpu_memory_utilization: 0.95
   cpu_offload_gb: 0
   # kv_cache_dtype options:
   #   auto  — matches model dtype (bf16/fp16). Most stable, lowest concurrency.

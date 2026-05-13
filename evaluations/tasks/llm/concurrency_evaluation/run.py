@@ -455,7 +455,10 @@ async def start_server(
         serve_env["VLLM_ATTENTION_BACKEND"] = str(attn_backend)
     # Disable DeepGEMM warmup. vLLM 0.20.x's kernel_warmup() unconditionally
     # calls deep_gemm_warmup() if the GPU supports FP8 in hardware (H100+),
-    # but the DeepGEMM Python package isn't on PyPI as a usable wheel.
+    # but the DeepGEMM Python package isn't on PyPI as a usable wheel — the
+    # warmup crashes with "DeepGEMM backend is not available or outdated".
+    # We don't need DeepGEMM kernels (FP8 weights use CutlassFP8ScaledMM
+    # which is in-tree), so disabling avoids the crash with no perf cost.
     serve_env.setdefault("VLLM_USE_DEEP_GEMM", "0")
     # Expose dev-mode endpoints (/reset_prefix_cache, /sleep, /wake_up,
     # /collective_rpc, /is_sleeping). We need /reset_prefix_cache to wipe KV
