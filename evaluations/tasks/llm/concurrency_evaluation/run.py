@@ -258,6 +258,26 @@ def build_serve_cmd(
     if mem.get("cpu_offload_gb", 0):
         parts += ["--cpu-offload-gb", str(mem["cpu_offload_gb"])]
 
+    # Concurrent partial prefills — admit multiple prompts per scheduler iter
+    # instead of fully prefilling one before starting the next. Cuts ramp-up
+    # time from cold start to peak running batch by 3-4x for burst loads.
+    if perf.get("max_num_partial_prefills") is not None:
+        parts += ["--max-num-partial-prefills",
+                  str(int(perf["max_num_partial_prefills"]))]
+    if perf.get("long_prefill_token_threshold") is not None:
+        parts += ["--long-prefill-token-threshold",
+                  str(int(perf["long_prefill_token_threshold"]))]
+    if perf.get("max_long_partial_prefills") is not None:
+        parts += ["--max-long-partial-prefills",
+                  str(int(perf["max_long_partial_prefills"]))]
+    # Inter-prefill budget — caps simultaneous prefills when GPU compute is
+    # already saturated. Reduces head-of-line blocking during large prompts.
+    # Available in vLLM 0.21+ (PR #33743). If absent, vLLM ignores unknown args
+    # — but we gate on config presence to avoid surprises.
+    if perf.get("inter_prefill_budget") is not None:
+        parts += ["--inter-prefill-budget",
+                  str(int(perf["inter_prefill_budget"]))]
+
     spec = engine_cfg.get("speculative_decoding") or {}
     if spec.get("enabled"):
         method = spec.get("method", "ngram_gpu")

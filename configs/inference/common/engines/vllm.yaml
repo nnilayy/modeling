@@ -21,14 +21,33 @@ memory:
 performance:
   enable_prefix_caching: true
   enable_chunked_prefill: true
-  # Sized for largest model in our matrix (32B BF16 on H100 80GB):
-  #   weights = 61 GB, leaving ~14 GB for activations + KV cache + workspace.
-  # 65536 caused profile_run OOM on 32B (lm_head logits buffer = 6.5 GB alone).
-  # 16384 is safe across 1.7B → 32B and still admits 16 × 1k prompts per iter.
-  max_num_batched_tokens: 16384
+  # FP8 weights cut activations roughly in half, so we can afford a much bigger
+  # admission budget. 65536 lets us admit ~64 × 1k prompts per scheduler iter
+  # (vs 16 with the previous 16384) — ramp-up from cold start to peak_running
+  # collapses from ~10 iters to ~3.
+  # NOTE: revert to 16384 for BF16 32B (lm_head logits OOM at 65k tokens).
+  max_num_batched_tokens: 65536
+  # Concurrent partial prefills — instead of fully prefilling one prompt before
+  # starting the next, the scheduler progresses 4 prompts in parallel per iter,
+  # splitting the compute budget across them. Drastically cuts TTFT for the
+  # 2nd-Nth requests admitted in a burst.
+  max_num_partial_prefills: 4
+  # Prompts above this token count are classified "long" and counted against a
+  # separate concurrency cap. Prevents one 32k prompt from monopolizing the
+  # batch budget and starving the short prompts behind it.
+  long_prefill_token_threshold: 2048
+  max_long_partial_prefills: 2
+  # Inter-prefill budget caps simultaneous prefills when GPU compute is already
+  # saturated by a single big prompt. Cuts median TTFT up to ~37% on large
+  # models (vLLM PR #33743). Only honored on vLLM 0.21+ — older versions ignore.
+  # Comment out if you see startup errors about unknown CLI flag.
+  # inter_prefill_budget: 8192
   enable_prompt_tokens_details: true
   disable_frontend_multiprocessing: true
-  max_num_seqs: 256
+  # Running batch cap. With FP8 KV at ~50% utilization and 149 in flight, we
+  # have headroom for ~300 concurrent. Bumping to 512 lets the small-context
+  # buckets absorb all 256 fired requests in a single wave (no second wave).
+  max_num_seqs: 512
   async_scheduling: true
   # Attention backend selection. On H100 (SM 9.0), vLLM auto-selects FLASH_ATTN
   # (FlashAttention 3) which is the best choice. Leave unset to let vLLM pick.
@@ -47,7 +66,7 @@ performance:
 #   medusa    — multi-head drafting; needs medusa-tuned model.
 # Set enabled: false to disable entirely.
 speculative_decoding:
-  enabled: false
+  enabled: true
   method: "ngram_gpu"
   num_speculative_tokens: 5
   prompt_lookup_max: 4
