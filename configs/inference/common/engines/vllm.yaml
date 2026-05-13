@@ -25,6 +25,22 @@ performance:
   max_num_seqs: 256
   async_scheduling: true
 
+# Speculative decoding settings.
+# Method options:
+#   ngram   — prompt-lookup, no draft model needed; best for repetitive output
+#             (RAG, code completion). For novel generation expect 1.1-1.3x decode
+#             speedup. Free to enable, no extra GPU memory.
+#   eagle   — requires a separate draft model (eagle_model_path); 2-3x decode
+#             speedup but adds memory + compilation overhead.
+#   medusa  — multi-head drafting; needs medusa-tuned model.
+# Set enabled: false to disable entirely.
+speculative_decoding:
+  enabled: true
+  method: "ngram"
+  num_speculative_tokens: 5
+  prompt_lookup_max: 4
+  prompt_lookup_min: 2
+
 tool_calling:
   enable_auto_tool_choice: true
   tool_call_parser: "hermes"

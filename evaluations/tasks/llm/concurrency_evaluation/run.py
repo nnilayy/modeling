@@ -258,6 +258,21 @@ def build_serve_cmd(
     if mem.get("cpu_offload_gb", 0):
         parts += ["--cpu-offload-gb", str(mem["cpu_offload_gb"])]
 
+    spec = engine_cfg.get("speculative_decoding") or {}
+    if spec.get("enabled"):
+        method = spec.get("method", "ngram")
+        spec_cfg: dict[str, Any] = {
+            "method": method,
+            "num_speculative_tokens": int(spec.get("num_speculative_tokens", 5)),
+        }
+        if method == "ngram":
+            spec_cfg["prompt_lookup_max"] = int(spec.get("prompt_lookup_max", 4))
+            spec_cfg["prompt_lookup_min"] = int(spec.get("prompt_lookup_min", 2))
+        elif method in ("eagle", "eagle3"):
+            if spec.get("eagle_model_path"):
+                spec_cfg["model"] = spec["eagle_model_path"]
+        parts += ["--speculative-config", json.dumps(spec_cfg)]
+
     return parts
 
 
