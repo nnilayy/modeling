@@ -9,12 +9,11 @@ server:
   trust_remote_code: true
 
 memory:
-  # Bumped 0.95 → 0.97 for TurboQuant. vLLM 0.20.2 reserves ~1.4% more than 0.20.0
-  # for cudagraph profiling (warning: "0.95 effective = 0.9364"), so we bump to
-  # 0.97 to claw it back. Combined with TurboQuant's per-layer Triton scratch
-  # (~10 GiB for max_num_batched_tokens=65536), this is needed to leave KV budget.
-  # If startup still OOMs, drop max_num_batched_tokens to 32768 first, NOT this.
-  gpu_memory_utilization: 0.97
+  # Pushed to 0.98 to claw back KV budget — vLLM 0.20.2 reserves ~1.4% more than
+  # 0.20.0 for cudagraph profiling ("0.95 effective = 0.9364"), so 0.98 ≈ 0.966
+  # of usable HBM. Leaves ~1.6 GiB safety margin on H100 80GB after the 32B FP8
+  # weights (63 GiB) + cudagraphs (~1 GiB) + activations.
+  gpu_memory_utilization: 0.98
   cpu_offload_gb: 0
   # kv_cache_dtype options:
   #   auto  — matches model dtype (bf16/fp16). Most stable, lowest concurrency.
@@ -23,16 +22,14 @@ memory:
   #   fp8_e5m2 / fp8_e4m3 — explicit FP8 variants. e4m3 is more accurate.
   #
   # TurboQuant presets (vLLM 0.20+, PR #38479) — online KV cache compression
-  # via WHT rotation + Lloyd-Max quantization. No calibration / weight changes.
+  # via WHT rotation + Lloyd-Max quantization. Tried turboquant_3bit_nc but
+  # all 256 fired requests failed (server boots, peak_running stays at 0) —
+  # likely Triton decode kernel issue with our model. Reverted to fp8.
   #   turboquant_k8v4    — FP8 K + 4-bit V,           2.6× compression, +1.17% PPL
   #   turboquant_4bit_nc — 4-bit K + 4-bit V + NC,    3.8× compression, +2.71% PPL
   #   turboquant_k3v4_nc — 3-bit K + 4-bit V + NC,    ~3.5× compression, +10.63% PPL
   #   turboquant_3bit_nc — 3-bit K + 3-bit V + NC,    4.9× compression, +20.59% PPL
-  #
-  # Currently set to turboquant_3bit_nc to push max concurrency for the bench
-  # (4.9× more KV headroom than BF16, ~2.45× over fp8). Quality is degraded
-  # — only use for concurrency / throughput measurements, NOT production.
-  kv_cache_dtype: "turboquant_3bit_nc"
+  kv_cache_dtype: "fp8"
 
 performance:
   enable_prefix_caching: true
@@ -42,11 +39,7 @@ performance:
   # (vs 16 with the previous 16384) — ramp-up from cold start to peak_running
   # collapses from ~10 iters to ~3.
   # NOTE: revert to 16384 for BF16 32B (lm_head logits OOM at 65k tokens).
-  # NOTE: reduced 65536 → 32768 for TurboQuant. The TQ Triton decode kernel
-  # reserves split-KV scratch proportional to max_num_batched_tokens; at 65536
-  # this leaves only 0.55 GiB for KV cache. 32768 frees ~5 GiB for KV.
-  # Revert to 65536 if you switch back to fp8 / fp8_e4m3 KV.
-  max_num_batched_tokens: 32768
+  max_num_batched_tokens: 65536
   # Concurrent partial prefills — DISABLED on vLLM 0.20.2.
   # The CLI accepts --max-num-partial-prefills/--max-long-partial-prefills/
   # --long-prefill-token-threshold but the scheduler raises NotImplementedError
