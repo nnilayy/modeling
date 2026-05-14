@@ -9,76 +9,19 @@ server:
   trust_remote_code: true
 
 memory:
-  # Held at 0.95. We tried 0.98 to squeeze more KV out of the H100 but the
-  # engine OOMs during FlashInfer autotune's _dummy_run, which transiently
-  # allocates a (max_num_batched_tokens, 51200) bf16 tensor (≈6.25 GiB at
-  # 65536 tokens). That allocation happens AFTER the KV pool is committed,
-  # so the safety margin needs to cover it. 0.95 leaves ~6 GiB headroom on
-  # the H100-80GB which fits autotune cleanly. Net cost vs 0.98: ~2 GiB less
-  # KV memory ≈ ~16k fewer cached tokens — negligible vs the ~280k we get.
-  gpu_memory_utilization: 0.95
+  gpu_memory_utilization: 0.95  # ~4 GiB transient headroom on H100-80GB; >0.96 OOMs on burst.
   cpu_offload_gb: 0
-  # kv_cache_dtype options:
-  #   auto  — matches model dtype (bf16/fp16). Most stable, lowest concurrency.
-  #   fp8   — 8-bit KV cache. ~2× concurrency on H100+ (Hopper has native FP8).
-  #           Slight quality loss (<1% on most benchmarks). Stable on vLLM 0.20+.
-  #   fp8_e5m2 / fp8_e4m3 — explicit FP8 variants. e4m3 is more accurate.
-  #
-  # TurboQuant presets (vLLM 0.20+, PR #38479) — online KV cache compression
-  # via WHT rotation + Lloyd-Max quantization. Tried turboquant_3bit_nc but
-  # all 256 fired requests failed (server boots, peak_running stays at 0) —
-  # likely Triton decode kernel issue with our model. Reverted to fp8.
-  #   turboquant_k8v4    — FP8 K + 4-bit V,           2.6× compression, +1.17% PPL
-  #   turboquant_4bit_nc — 4-bit K + 4-bit V + NC,    3.8× compression, +2.71% PPL
-  #   turboquant_k3v4_nc — 3-bit K + 4-bit V + NC,    ~3.5× compression, +10.63% PPL
-  #   turboquant_3bit_nc — 3-bit K + 3-bit V + NC,    4.9× compression, +20.59% PPL
-  kv_cache_dtype: "fp8"
+  kv_cache_dtype: "fp8"  # ~2× concurrency on H100 vs auto/bf16, <1% quality loss.
 
 performance:
   enable_prefix_caching: true
   enable_chunked_prefill: true
-  # FP8 weights cut activations roughly in half, so we can afford a much bigger
-  # admission budget. 65536 lets us admit ~64 × 1k prompts per scheduler iter
-  # (vs 16 with the previous 16384) — ramp-up from cold start to peak_running
-  # collapses from ~10 iters to ~3.
-  # NOTE: revert to 16384 for BF16 32B (lm_head logits OOM at 65k tokens).
-  max_num_batched_tokens: 65536
-  # Concurrent partial prefills — DISABLED on vLLM 0.20.2.
-  # The CLI accepts --max-num-partial-prefills/--max-long-partial-prefills/
-  # --long-prefill-token-threshold but the scheduler raises NotImplementedError
-  # at startup ("Concurrent Partial Prefill is not supported", arg_utils.py L2142).
-  # Feature lands properly in vLLM 0.21+. Re-enable when we upgrade.
-  # max_num_partial_prefills: 4
-  # long_prefill_token_threshold: 2048
-  # max_long_partial_prefills: 2
-  # Inter-prefill budget caps simultaneous prefills when GPU compute is already
-  # saturated by a single big prompt. Cuts median TTFT up to ~37% on large
-  # models (vLLM PR #33743). Only honored on vLLM 0.21+ — older versions ignore.
-  # Comment out if you see startup errors about unknown CLI flag.
-  # inter_prefill_budget: 8192
+  max_num_batched_tokens: 16384  # FFN intermediate ~1.56 GiB at this size; 65536 OOMed.
   enable_prompt_tokens_details: true
   disable_frontend_multiprocessing: true
-  # Running batch cap. With FP8 KV at ~50% utilization and 149 in flight, we
-  # have headroom for ~300 concurrent. Bumping to 512 lets the small-context
-  # buckets absorb all 256 fired requests in a single wave (no second wave).
-  max_num_seqs: 512
+  max_num_seqs: 512  # Lets 256-prompt bursts fit in one wave on small-context buckets.
   async_scheduling: false
-  # Attention backend selection. On H100 (SM 9.0), vLLM auto-selects FLASH_ATTN
-  # (FlashAttention 3) which is the best choice. Leave unset to let vLLM pick.
-  # Note: VLLM_ATTENTION_BACKEND is not a recognized env var in vLLM 0.20+, the
-  # selection is made via the engine's auto-detection logic.
-  # attention_backend: "FLASHINFER"
 
-# Speculative decoding settings.
-# Method options:
-#   ngram_gpu — GPU-resident prompt lookup, REQUIRED when async_scheduling is on
-#               (vLLM 0.20+). For novel generation expect 1.1-1.3x decode
-#               speedup. Free to enable, no extra GPU memory.
-#   ngram     — CPU prompt lookup. INCOMPATIBLE with async_scheduling in 0.20+.
-#   eagle     — requires a separate draft model (set `model:` to draft path);
-#               2-3x decode speedup but adds memory + compilation overhead.
-#   medusa    — multi-head drafting; needs medusa-tuned model.
-# Set enabled: false to disable entirely.
 speculative_decoding:
   enabled: false
   method: "ngram_gpu"

@@ -267,32 +267,15 @@ def build_serve_cmd(
     if mem.get("cpu_offload_gb", 0):
         parts += ["--cpu-offload-gb", str(mem["cpu_offload_gb"])]
 
-    # Disable FlashInfer autotune (CLI-level — backstop for the env var set
-    # in start_server). Autotune does a worst-case dummy forward at
-    # max_num_batched_tokens which OOMs at our settings (~6.25 GiB transient).
-    # We use FLASH_ATTN as the actual backend so this is wasted work anyway.
+    # FlashInfer autotune runs a worst-case dummy forward at
+    # max_num_batched_tokens during kernel warmup. We use FLASH_ATTN as the
+    # actual backend (see [cuda.py:317] in the server log: "Using FLASH_ATTN
+    # attention backend"), so the autotune is wasted work that just burns
+    # transient memory. Disable it. vLLM PR #41524 also flips this off by
+    # default at higher optimization levels due to FlashInfer correctness
+    # bugs.
     parts += ["--kernel-config",
               json.dumps({"enable_flashinfer_autotune": False})]
-
-    # Concurrent partial prefills — admit multiple prompts per scheduler iter
-    # instead of fully prefilling one before starting the next. Cuts ramp-up
-    # time from cold start to peak running batch by 3-4x for burst loads.
-    if perf.get("max_num_partial_prefills") is not None:
-        parts += ["--max-num-partial-prefills",
-                  str(int(perf["max_num_partial_prefills"]))]
-    if perf.get("long_prefill_token_threshold") is not None:
-        parts += ["--long-prefill-token-threshold",
-                  str(int(perf["long_prefill_token_threshold"]))]
-    if perf.get("max_long_partial_prefills") is not None:
-        parts += ["--max-long-partial-prefills",
-                  str(int(perf["max_long_partial_prefills"]))]
-    # Inter-prefill budget — caps simultaneous prefills when GPU compute is
-    # already saturated. Reduces head-of-line blocking during large prompts.
-    # Available in vLLM 0.21+ (PR #33743). If absent, vLLM ignores unknown args
-    # — but we gate on config presence to avoid surprises.
-    if perf.get("inter_prefill_budget") is not None:
-        parts += ["--inter-prefill-budget",
-                  str(int(perf["inter_prefill_budget"]))]
 
     spec = engine_cfg.get("speculative_decoding") or {}
     if spec.get("enabled"):
@@ -460,22 +443,18 @@ async def start_server(
     attn_backend = engine_cfg["performance"].get("attention_backend")
     if attn_backend:
         serve_env["VLLM_ATTENTION_BACKEND"] = str(attn_backend)
-    # Disable DeepGEMM warmup. vLLM 0.20.x's kernel_warmup() unconditionally
+    # Disable DeepGEMM warmup. vLLM's kernel_warmup() unconditionally
     # calls deep_gemm_warmup() if the GPU supports FP8 in hardware (H100+),
     # but the DeepGEMM Python package isn't on PyPI as a usable wheel — the
     # warmup crashes with "DeepGEMM backend is not available or outdated".
     # We don't need DeepGEMM kernels (FP8 weights use CutlassFP8ScaledMM
     # which is in-tree), so disabling avoids the crash with no perf cost.
     serve_env.setdefault("VLLM_USE_DEEP_GEMM", "0")
-    # Disable FlashInfer autotune. It runs a dummy forward at
-    # max_num_batched_tokens during kernel_warmup, which transiently allocates
-    # ~6.25 GiB at our settings (65536 x 51200 bf16). With FP8 weights
-    # (32 GiB) + KV pool (~31 GiB at 0.95 util) + cudagraphs (~1 GiB) we don't
-    # have that much free → OOM at startup. We use FLASH_ATTN (not FlashInfer)
-    # as the actual attention backend, so autotune is wasted work anyway.
-    # vLLM PR #41524 also disabled it by default at higher opt levels due to
-    # correctness bugs in FlashInfer.
-    serve_env.setdefault("VLLM_ENABLE_FLASHINFER_AUTOTUNE", "0")
+    # NOTE: FlashInfer autotune is disabled via the --kernel-config CLI flag
+    # in build_serve_cmd, not via env var. vLLM does NOT recognize a
+    # VLLM_ENABLE_FLASHINFER_AUTOTUNE env var (you'll see
+    # "Unknown vLLM environment variable detected" in the log if you set
+    # one), so the env-var approach was a no-op.
     # Expose dev-mode endpoints (/reset_prefix_cache, /sleep, /wake_up,
     # /collective_rpc, /is_sleeping). We need /reset_prefix_cache to wipe KV
     # state between buckets without restarting the server, so kernels and
