@@ -19,8 +19,8 @@ performance:
   max_num_batched_tokens: 16384  # FFN intermediate ~1.56 GiB at this size; 65536 OOMed.
   enable_prompt_tokens_details: true
   disable_frontend_multiprocessing: true
-  max_num_seqs: 512  # Lets 256-prompt bursts fit in one wave on small-context buckets.
-  async_scheduling: false
+  max_num_seqs: 256  # Matches 256-prompt burst; KV pool is the real concurrency cap.
+  async_scheduling: true  # Overlaps scheduler w/ GPU exec; vLLM 0.18+ default is true.
 
 speculative_decoding:
   enabled: false
