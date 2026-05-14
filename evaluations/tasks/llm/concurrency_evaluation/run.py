@@ -267,6 +267,13 @@ def build_serve_cmd(
     if mem.get("cpu_offload_gb", 0):
         parts += ["--cpu-offload-gb", str(mem["cpu_offload_gb"])]
 
+    # Disable FlashInfer autotune (CLI-level — backstop for the env var set
+    # in start_server). Autotune does a worst-case dummy forward at
+    # max_num_batched_tokens which OOMs at our settings (~6.25 GiB transient).
+    # We use FLASH_ATTN as the actual backend so this is wasted work anyway.
+    parts += ["--kernel-config",
+              json.dumps({"enable_flashinfer_autotune": False})]
+
     # Concurrent partial prefills — admit multiple prompts per scheduler iter
     # instead of fully prefilling one before starting the next. Cuts ramp-up
     # time from cold start to peak running batch by 3-4x for burst loads.
@@ -460,6 +467,15 @@ async def start_server(
     # We don't need DeepGEMM kernels (FP8 weights use CutlassFP8ScaledMM
     # which is in-tree), so disabling avoids the crash with no perf cost.
     serve_env.setdefault("VLLM_USE_DEEP_GEMM", "0")
+    # Disable FlashInfer autotune. It runs a dummy forward at
+    # max_num_batched_tokens during kernel_warmup, which transiently allocates
+    # ~6.25 GiB at our settings (65536 x 51200 bf16). With FP8 weights
+    # (32 GiB) + KV pool (~31 GiB at 0.95 util) + cudagraphs (~1 GiB) we don't
+    # have that much free → OOM at startup. We use FLASH_ATTN (not FlashInfer)
+    # as the actual attention backend, so autotune is wasted work anyway.
+    # vLLM PR #41524 also disabled it by default at higher opt levels due to
+    # correctness bugs in FlashInfer.
+    serve_env.setdefault("VLLM_ENABLE_FLASHINFER_AUTOTUNE", "0")
     # Expose dev-mode endpoints (/reset_prefix_cache, /sleep, /wake_up,
     # /collective_rpc, /is_sleeping). We need /reset_prefix_cache to wipe KV
     # state between buckets without restarting the server, so kernels and
