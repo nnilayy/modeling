@@ -23,7 +23,7 @@ performance:
   async_scheduling: true  # Overlaps scheduler w/ GPU exec; vLLM 0.18+ default is true.
 
 speculative_decoding:
-  enabled: true  # ngram_gpu: ~1% gain at 1k bucket, up to ~7% at 32k; ~0% downside.
+  enabled: false  # ngram_gpu regressed wall +1-2% & E2E +86% at batch 256 (vLLM #21278).
   method: "ngram_gpu"
   num_speculative_tokens: 5
   prompt_lookup_max: 4
