@@ -11,7 +11,7 @@ server:
 memory:
   gpu_memory_utilization: 0.95  # ~4 GiB transient headroom on H100-80GB; >0.96 OOMs on burst.
   cpu_offload_gb: 0
-  kv_cache_dtype: "fp8"  # ~2× concurrency on H100 vs auto/bf16, <1% quality loss.
+  kv_cache_dtype: "auto"  # Native BF16 KV (no quantization); ~½ concurrency vs fp8.
 
 performance:
   enable_prefix_caching: true
